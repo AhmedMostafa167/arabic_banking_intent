@@ -89,7 +89,9 @@ def main() -> None:
         mlflow.log_metrics({"latency_p50_ms": p50, "latency_p95_ms": p95, "model_size_mb": len(pickle.dumps(pipeline)) / 1e6})
 
         # Kept so later comparisons (the leak check, paired bootstraps) can re-score without retraining
-        predictions = val.assign(predicted=val_pred)[[c for c in ("qid", "label", "predicted") if c in val]]
+        predictions = val.assign(predicted=val_pred)
+        predictions = predictions[[c for c in ("qid", "label", "predicted") if c in predictions]]
+        assert "predicted" in predictions, "validation predictions are missing from the artifact"
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "val_predictions.parquet"
             predictions.to_parquet(path, index=False)
