@@ -19,4 +19,14 @@ train (`notebooks/01_explore_data.ipynb`, part 2). How much does that inflate a 
 score noticeably: A − B will be a random difference, not a real one. Tested as: the gap is no
 larger than the noise floor measured in step 2.
 
+**Revised prediction (2026-10-25, still before any run).** The baseline uses character n-grams
+(`configs/baseline.toml`), not whole words, so it can partly match a leaked paraphrase: بطاقتي and
+البطاقة share no word but share "بطاق". So TF-IDF will gain *something* from the leak, but less
+than AraBERT, because it is still a keyword model and cannot match a paraphrase that shares no
+characters. Tested as:
+
+1. **TF-IDF (step 2):** A − B is above the noise (the 95% interval of the difference excludes 0).
+2. **AraBERT (step 3):** AraBERT's gap between the official and our validation sets is larger than
+   TF-IDF's.
+
 **Result.** Pending (step 2).

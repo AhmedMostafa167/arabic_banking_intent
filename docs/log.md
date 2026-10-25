@@ -2,6 +2,7 @@
 
 Newest first: `YYYY-MM-DD · <area> · <what broke> → <root cause> → <how to spot it next time>`
 
+- 2026-10-25 · tracking · a model logged from outside the repo recorded wrong dependency versions (pyarrow 26.0.0 while 25.0.1 was installed) → MLflow takes a model's dependencies from `uv.lock` when it finds one in the working directory, and otherwise infers them itself → run the training scripts from the repo root, and read a logged model's `requirements.txt` before serving it.
 - 2026-10-24 · tracking · registering a plain logged file failed ("Unable to find a logged_model") → MLflow 3 registers only models logged with `mlflow.<flavor>.log_model(..., name=...)` → register `model_info.model_uri` from the `log_model` call, not a hand-built `runs:/` path.
 - 2026-10-24 · deps · `uv add mlflow` downgraded pyarrow 26.0.0 → 25.0.1, and the rebuilt parquet files got new bytes and a new DVC hash with identical content → pyarrow writes its version into every parquet file → after a dependency change, rebuild the data, run `dvc status`, and compare content with `DataFrame.equals` before assuming the data changed.
 - 2026-10-23 · data · the Tunisian test file covers only 27 of the 77 intents → it is a smaller sample of the test questions → compute macro-F1 over the intents present in each test set; passing all 77 labels to `f1_score` adds 50 zero scores.

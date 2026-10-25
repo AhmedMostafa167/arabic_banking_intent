@@ -1,0 +1,3 @@
+# Our train/validation split (scripts/prepare_data.py). Changing a value changes data/processed.
+seed = 42
+val_fraction = 0.10

@@ -18,4 +18,10 @@ uv run pytest                               # run the tests
 # MLflow tracking server and model registry: SQLite + local files, at http://127.0.0.1:5000
 uv run mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts \
     --host 127.0.0.1 --port 5000 --workers 1
+
+# The TF-IDF baseline (settings in configs/baseline.toml); commit first, so the run records clean code
+uv run python scripts/train_baseline.py --data grouped --experiment intent-classifier
 ```
+
+Settings such as the tracking URI and data paths live in `src/arabic_banking_intents/helpers/config.py`;
+copy `.env.example` to `.env` to change them.

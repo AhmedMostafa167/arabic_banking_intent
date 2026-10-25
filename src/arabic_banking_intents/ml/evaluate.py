@@ -8,6 +8,7 @@ set. They resample whole questions (`groups`), because versions of one question 
 independent evidence.
 """
 
+import time
 from collections.abc import Callable, Iterator, Sequence
 
 import numpy as np
@@ -102,3 +103,16 @@ def interval(samples: ArrayLike, level: float = 0.95) -> tuple[float, float]:
     tail = (1 - level) / 2 * 100
     low, high = np.percentile(samples, [tail, 100 - tail])
     return float(low), float(high)
+
+
+def latency_ms(predict_one: Callable[[str], object], texts: Sequence[str], warmup: int = 5) -> tuple[float, float]:
+    """p50 and p95 milliseconds to classify one message at a time, as the API will."""
+    for text in texts[:warmup]:
+        predict_one(text)
+    times = []
+    for text in texts:
+        start = time.perf_counter()
+        predict_one(text)
+        times.append((time.perf_counter() - start) * 1000)
+    p50, p95 = np.percentile(times, [50, 95])
+    return float(p50), float(p95)
