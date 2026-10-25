@@ -1,0 +1,26 @@
+[project]
+name = "arabic-banking-intents"
+version = "0.1.0"
+description = "Arabic banking intent classifier (ArBanking77)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "mlflow>=3.17.2",
+    "numpy>=2",
+    "pandas>=2.2",
+    "pyarrow>=17",
+    "scikit-learn>=1.5",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,11 @@
+# Lessons log
+
+Newest first: `YYYY-MM-DD · <area> · <what broke> → <root cause> → <how to spot it next time>`
+
+- 2026-10-24 · tracking · registering a plain logged file failed ("Unable to find a logged_model") → MLflow 3 registers only models logged with `mlflow.<flavor>.log_model(..., name=...)` → register `model_info.model_uri` from the `log_model` call, not a hand-built `runs:/` path.
+- 2026-10-24 · deps · `uv add mlflow` downgraded pyarrow 26.0.0 → 25.0.1, and the rebuilt parquet files got new bytes and a new DVC hash with identical content → pyarrow writes its version into every parquet file → after a dependency change, rebuild the data, run `dvc status`, and compare content with `DataFrame.equals` before assuming the data changed.
+- 2026-10-23 · data · the Tunisian test file covers only 27 of the 77 intents → it is a smaller sample of the test questions → compute macro-F1 over the intents present in each test set; passing all 77 labels to `f1_score` adds 50 zero scores.
+- 2026-10-23 · data · `pd.read_csv(..., engine="python")` silently loaded 13,034 of 13,083 corpus rows and never called `on_bad_lines` → 49 rows have unescaped quotes inside a text and parsers disagree on them (the C engine and `csv` keep 41 and reject 8) → after loading, assert that rows loaded + rows dropped = records in the file.
+- 2026-10-23 · data · 8 rows of `Banking77_full_corpus.csv` have the wrong column count → unescaped quotation marks inside the text → after loading any CSV, check that every row has the expected number of columns.
+- 2026-10-23 · data · the official ArBanking77 validation split would inflate scores → 2,198 source questions have one Arabic version in train and another in validation (split by row, not by source) → when a dataset has several versions of each example, check that no source ID appears in more than one split.
+- 2026-10-23 · data · the Hugging Face `SinaLab/ArBanking77` has only ~1k training rows → it is a sample; the full 21.5k corpus is in the authors' GitHub repo → before working around "too little data", check the paper and the authors' repo for the full release.
