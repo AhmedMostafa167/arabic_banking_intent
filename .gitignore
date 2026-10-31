@@ -3,6 +3,7 @@ __pycache__/
 .ipynb_checkpoints/
 .pytest_cache/
 .env
+docs/PLAN.md
 mlflow.db
 mlartifacts/
 mlruns/
