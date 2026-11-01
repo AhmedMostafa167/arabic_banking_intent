@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     DATA_RAW_DIR: Path = PROJECT_ROOT / "data" / "raw"
     DATA_PROCESSED_DIR: Path = PROJECT_ROOT / "data" / "processed"
     CONFIGS_DIR: Path = PROJECT_ROOT / "configs"
+    RUNS_DIR: Path = PROJECT_ROOT / "runs"  # Kaggle uploads and downloaded outputs; not in git
+
+    KAGGLE_USERNAME: str | None = None  # required by the Kaggle scripts
+    KAGGLE_DATASET: str = "arabic-banking-intents-inputs"
+    KAGGLE_KERNEL: str = "arabic-banking-intents-train"
 
     model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", extra="ignore")
 

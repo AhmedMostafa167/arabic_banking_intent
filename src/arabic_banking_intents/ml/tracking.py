@@ -1,11 +1,13 @@
 """MLflow helpers: connect loudly, tag every run with the code and data behind it, log evaluations."""
 
 import subprocess
+import tempfile
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
 
 import mlflow
+import pandas as pd
 import yaml
 from numpy.typing import ArrayLike
 
@@ -62,3 +64,26 @@ def log_evaluation(
     mlflow.log_dict(result["per_intent_f1"], f"evaluation/{prefix}_per_intent_f1.json")
     mlflow.log_dict(result["top_confusions"], f"evaluation/{prefix}_top_confusions.json")
     return result
+
+
+def flatten(config: dict, prefix: str = "") -> dict:
+    """{"tfidf": {"min_df": 2}} -> {"tfidf.min_df": 2}, for MLflow params."""
+    flat = {}
+    for key, value in config.items():
+        if isinstance(value, dict):
+            flat |= flatten(value, f"{prefix}{key}.")
+        else:
+            flat[f"{prefix}{key}"] = value
+    return flat
+
+
+def log_val_predictions(val: pd.DataFrame, predicted: ArrayLike) -> None:
+    """Keep the validation predictions, so later comparisons (the leak check, the paired gate) can
+    re-score without retraining."""
+    predictions = val.assign(predicted=predicted)
+    predictions = predictions[[c for c in ("qid", "label", "predicted") if c in predictions]]
+    assert "predicted" in predictions, "validation predictions are missing from the artifact"
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "val_predictions.parquet"
+        predictions.to_parquet(path, index=False)
+        mlflow.log_artifact(str(path), "evaluation")

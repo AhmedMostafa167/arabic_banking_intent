@@ -21,6 +21,11 @@ uv run mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destina
 
 # The TF-IDF baseline (settings in configs/baseline.toml); commit first, so the run records clean code
 uv run python scripts/train_baseline.py --data grouped --experiment intent-classifier
+
+# AraBERT on a Kaggle GPU (settings in configs/arabert.toml; needs the Kaggle CLI and KAGGLE_USERNAME)
+uv run python scripts/kaggle_push.py            # upload the inputs and start the training notebook
+uv run python scripts/log_kaggle_runs.py        # wait for it, download the output, log every run
+uv run python scripts/promote.py --runs <seed run IDs>   # the promotion gate against @champion
 ```
 
 Settings such as the tracking URI and data paths live in `src/arabic_banking_intents/helpers/config.py`;

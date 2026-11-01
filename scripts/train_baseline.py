@@ -11,7 +11,6 @@ first (see README), and commit first: a run from uncommitted code is tagged git_
 
 import argparse
 import pickle
-import tempfile
 import time
 import tomllib
 from pathlib import Path
@@ -23,22 +22,11 @@ from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
 from arabic_banking_intents.ml.baseline import TEXT_COLUMN, build_pipeline
 from arabic_banking_intents.ml.data import load_label_names, load_test_sets, load_train_val
 from arabic_banking_intents.ml.evaluate import latency_ms
-from arabic_banking_intents.ml.tracking import connect, lineage_tags, log_evaluation
+from arabic_banking_intents.ml.tracking import connect, flatten, lineage_tags, log_evaluation, log_val_predictions
 from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
 from arabic_banking_intents.models.enums.TrackingEnum import ComputeEnum, ExperimentEnum, ModelFamilyEnum, TagEnum
 
 LATENCY_SAMPLE = 200  # validation messages timed one at a time
-
-
-def flatten(config: dict, prefix: str = "") -> dict:
-    """{"tfidf": {"min_df": 2}} -> {"tfidf.min_df": 2}, for MLflow params."""
-    flat = {}
-    for key, value in config.items():
-        if isinstance(value, dict):
-            flat |= flatten(value, f"{prefix}{key}.")
-        else:
-            flat[f"{prefix}{key}"] = value
-    return flat
 
 
 def main() -> None:
@@ -83,21 +71,16 @@ def main() -> None:
             log_evaluation(f"test_{test_set.lower()}", test["label"], pipeline.predict(test[[TEXT_COLUMN]]), intent_names)
 
         p50, p95 = latency_ms(
-            lambda text: pipeline.predict(pd.DataFrame({TEXT_COLUMN: [text]})),
+            lambda text: pipeline.predict_proba(pd.DataFrame({TEXT_COLUMN: [text]})),
             val[TEXT_COLUMN].head(LATENCY_SAMPLE).tolist(),
         )
         mlflow.log_metrics({"latency_p50_ms": p50, "latency_p95_ms": p95, "model_size_mb": len(pickle.dumps(pipeline)) / 1e6})
 
-        # Kept so later comparisons (the leak check, paired bootstraps) can re-score without retraining
-        predictions = val.assign(predicted=val_pred)
-        predictions = predictions[[c for c in ("qid", "label", "predicted") if c in predictions]]
-        assert "predicted" in predictions, "validation predictions are missing from the artifact"
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "val_predictions.parquet"
-            predictions.to_parquet(path, index=False)
-            mlflow.log_artifact(str(path), "evaluation")
+        log_val_predictions(val, val_pred)
         mlflow.log_artifact(str(settings.DATA_PROCESSED_DIR / "labels.json"))
-        mlflow.sklearn.log_model(pipeline, name="model", input_example=val[[TEXT_COLUMN]].head(3))
+        # Probabilities, like every model here: the API can serve whichever model is champion the same way
+        mlflow.sklearn.log_model(pipeline, name="model", input_example=val[[TEXT_COLUMN]].head(3),
+                                 pyfunc_predict_fn="predict_proba")
 
 
 if __name__ == "__main__":

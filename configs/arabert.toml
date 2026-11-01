@@ -1,0 +1,37 @@
+# AraBERT fine-tuning (kaggle/train_arabert.py, on a Kaggle GPU). Every value is logged as a run parameter.
+# The learning rate, batch size and max length follow the ArBanking77 paper; the epoch limits are cheaper.
+
+model_name = "aubmindlab/bert-base-arabertv02"
+max_length = 128             # tokens; longer messages are cut, and the share cut is logged
+learning_rate = 4e-5
+batch_size = 64
+max_epochs = 10
+early_stopping_patience = 2  # stop after this many epochs without a better validation macro-F1
+weight_decay = 0.01
+warmup_steps = 0.1           # a fraction: the learning rate ramps up over the first 10% of planned steps
+fp16 = true                  # mixed precision on the GPU; the saved weights are fp16 too
+
+[[runs]]
+variant = "grouped"
+seed = 42
+save_model = true
+
+[[runs]]
+variant = "grouped"
+seed = 43
+save_model = true
+
+[[runs]]
+variant = "grouped"
+seed = 44
+save_model = true
+
+[[runs]]
+variant = "official"  # the leak check for AraBERT; never registered, so its model is not saved
+seed = 42
+save_model = false
+
+# scripts/kaggle_push.py --smoke: one quick pass through the whole loop, on the first run of each variant
+[smoke]
+train_fraction = 0.01
+max_epochs = 1

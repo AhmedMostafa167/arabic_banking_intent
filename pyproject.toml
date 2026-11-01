@@ -12,6 +12,8 @@ dependencies = [
     "pydantic-settings>=2.16.1",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.5",
+    "torch>=2.15.0",
+    "transformers>=5.22.1",
 ]
 
 [build-system]
@@ -20,9 +22,19 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "accelerate>=1.15.0",
     "ipykernel>=6.29",
     "pytest>=9.1.1",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# CPU-only PyTorch: this machine only logs, scores and serves models; training runs on a Kaggle GPU
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }

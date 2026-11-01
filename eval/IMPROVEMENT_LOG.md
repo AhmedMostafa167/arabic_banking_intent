@@ -42,7 +42,8 @@ characters. Tested as:
 
 1. **TF-IDF (step 2):** A − B is above the noise (the 95% interval of the difference excludes 0).
 2. **AraBERT (step 3):** AraBERT's gap between the official and our validation sets is larger than
-   TF-IDF's.
+   TF-IDF's. Number added 2026-10-31, before any AraBERT run: **about 4 points**, not more, because
+   TF-IDF with character n-grams already behaves similarly.
 
 **Result.** Runs `tfidf-logreg-official` and `tfidf-logreg-grouped` in `leak-check`, commit
 `c6e2687`, data version `c38e4d6b`.
@@ -72,3 +73,24 @@ measured on the official validation split could be the leak alone.
 **Note.** The `val_predictions.parquet` artifact of these runs lacks the predictions (a bug, since
 fixed). The interval of A − B was computed from predictions re-made with the logged models, which
 reproduce the logged scores exactly.
+
+## Entry 2 — Fine-tuned AraBERT against the TF-IDF champion (planned)
+
+**Question.** Does fine-tuned AraBERT (`aubmindlab/bert-base-arabertv02`, `configs/arabert.toml`)
+beat the baseline by more than the noise, and how much do its scores vary between seeds?
+
+**Measure.** Three runs on our split (seeds 42, 43, 44) in `intent-classifier`, trained on a Kaggle
+GPU; the gate in the plan (paired 95% bootstrap interval of AraBERT − champion validation macro-F1
+above 0 for every seed). Also: the paper's MSA test macro-F1 of 0.921 as a reproduction check, and
+latency per message on a laptop CPU.
+
+**Predictions (2026-10-31, before any run).**
+
+1. AraBERT on our split will score higher than the baseline on the test sets, but maybe lower on
+   validation; and its test score will be closer to its validation score, because the bias was
+   removed from the validation data.
+2. The spread between seeds will be about **0.5 points**: random initialisation matters little,
+   because a large pretrained model converges to almost the same weights.
+3. Latency: about **60 ms per message** on average on the laptop CPU (a rough guess).
+
+**Result.** Pending (step 3).

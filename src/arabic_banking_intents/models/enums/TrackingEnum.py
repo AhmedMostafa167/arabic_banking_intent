@@ -4,6 +4,7 @@ from enum import StrEnum
 class ExperimentEnum(StrEnum):
     LEAK_CHECK = "leak-check"  # what the official validation split's leak does to a score; never registered
     INTENT_CLASSIFIER = "intent-classifier"  # real candidates, all trained on our grouped split
+    SMOKE = "smoke"  # quick end-to-end checks of the Kaggle loop; safe to delete
 
 
 class AliasEnum(StrEnum):
@@ -12,6 +13,7 @@ class AliasEnum(StrEnum):
 
 class ModelFamilyEnum(StrEnum):
     TFIDF_LOGREG = "tfidf-logreg"
+    ARABERT = "arabert"
 
 
 class ComputeEnum(StrEnum):
@@ -27,3 +29,4 @@ class TagEnum(StrEnum):
     DATA_VARIANT = "data_variant"
     MODEL_FAMILY = "model_family"
     TRAINED_ON = "trained_on"
+    GPU = "gpu"
