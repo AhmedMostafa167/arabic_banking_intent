@@ -5,6 +5,7 @@ class ExperimentEnum(StrEnum):
     LEAK_CHECK = "leak-check"  # what the official validation split's leak does to a score; never registered
     INTENT_CLASSIFIER = "intent-classifier"  # real candidates, all trained on our grouped split
     SMOKE = "smoke"  # quick end-to-end checks of the Kaggle loop; safe to delete
+    SERVING_BENCHMARKS = "serving-benchmarks"  # load tests of the running API, one run per load level
 
 
 class AliasEnum(StrEnum):
@@ -38,3 +39,5 @@ class TagEnum(StrEnum):
     GPU = "gpu"
     RELOGGED_FROM = "relogged_from"  # on a registered copy of an earlier version, logged again unchanged
     RELOG_COMMIT = "relog_commit"  # the commit of the code that logged that copy
+    MODEL_VERSION = "model_version"  # on a benchmark run: the registered version the API was serving
+    RUNG = "rung"  # on a benchmark run: the step of the optimisation ladder being measured

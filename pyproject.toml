@@ -36,6 +36,7 @@ dev = [
     "accelerate>=1.15.0",
     "httpx>=0.28.1",
     "ipykernel>=6.29",
+    "locust>=2.47.0",
     "pytest>=9.1.1",
 ]
 

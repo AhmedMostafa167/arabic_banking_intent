@@ -31,6 +31,7 @@ services:
 
   api:
     build: .
+    cpus: 3  # of the laptop's 4: the fourth runs the load generator during benchmarks
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000  # the service name: inside a container, localhost is the container
       MODEL_ALIAS: champion

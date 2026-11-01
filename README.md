@@ -42,6 +42,7 @@ docker compose up --build          # MLflow + the API; stop any MLflow server on
 curl -s localhost:8000/api/v1/info # which model version is serving
 curl -s localhost:8000/api/v1/predict -H 'content-type: application/json' -d '{"text": "وين بطاقتي الجديدة؟"}'
 uv run python scripts/check_serving.py   # the API must answer like the model did offline
+uv run python benchmarks/run_benchmark.py --rung "0 pytorch fp32"   # load test, logged to MLflow
 
 # Or the API alone, on the host, against a host MLflow server
 uv run uvicorn arabic_banking_intents.serving.main:app
