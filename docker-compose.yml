@@ -35,6 +35,7 @@ services:
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000  # the service name: inside a container, localhost is the container
       MODEL_ALIAS: champion
+      INFERENCE_THREADS: ${INFERENCE_THREADS:-0}  # ONNX models: threads per request (0 = the runtime decides)
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

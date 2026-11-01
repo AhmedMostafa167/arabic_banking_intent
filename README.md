@@ -44,6 +44,10 @@ curl -s localhost:8000/api/v1/predict -H 'content-type: application/json' -d '{"
 uv run python scripts/check_serving.py   # the API must answer like the model did offline
 uv run python benchmarks/run_benchmark.py --rung "0 pytorch fp32"   # load test, logged to MLflow
 
+# The optimisation ladder: ONNX variants of an AraBERT version, each checked and timed
+uv run python scripts/build_variants.py --from-version 5
+uv run python scripts/build_variants.py --from-version 5 --register <rung> --alias champion --note "why"
+
 # Or the API alone, on the host, against a host MLflow server
 uv run uvicorn arabic_banking_intents.serving.main:app
 ```
