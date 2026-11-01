@@ -3,8 +3,9 @@
 Classifies Arabic banking customer messages into 77 intents (ArBanking77), with a production-standard
 system around the model.
 
-**Status:** data pipeline and TF-IDF baseline done; the baseline is the registered champion. Next:
-fine-tuning AraBERT. Measured results are in [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md).
+**Status:** data pipeline, TF-IDF baseline and AraBERT fine-tuning done. Fine-tuned AraBERT is the
+registered champion (validation macro-F1 0.918 against the baseline's 0.887). Next: serving it.
+Measured results are in [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md).
 
 Data: [ArBanking77](https://github.com/SinaLab/ArBanking77) by SinaLab, Birzeit University (CC BY-SA 4.0).
 
