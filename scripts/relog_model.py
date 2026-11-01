@@ -30,7 +30,7 @@ from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum, ModelFam
 
 def log_copy(source_uri: str, family: str, example, intent_names: list[str], tmp: Path) -> str:
     """Log the model at `source_uri` again into the active run; returns the new model's URI."""
-    metadata = {ModelMetadataEnum.INTENT_NAMES: intent_names}
+    metadata = {ModelMetadataEnum.INTENT_NAMES.value: intent_names}
     if family == ModelFamilyEnum.ARABERT:
         local = Path(mlflow.artifacts.download_artifacts(artifact_uri=source_uri, dst_path=str(tmp)))
         # MLmodel maps each artifact key to where it was stored (named after the source folder, not the key)
@@ -70,8 +70,12 @@ def main() -> None:
     family = run.data.tags[TagEnum.MODEL_FAMILY]
     _, val = load_train_val(DataVariantEnum.GROUPED, settings.DATA_RAW_DIR, settings.DATA_PROCESSED_DIR)
     intent_names = load_label_names(settings.DATA_PROCESSED_DIR)
-    with tempfile.TemporaryDirectory() as tmp, mlflow.start_run(run_id=run.info.run_id):
-        model_uri = log_copy(source.source, family, val[[TEXT_COLUMN]].head(3), intent_names, Path(tmp))
+    with tempfile.TemporaryDirectory() as tmp:
+        mlflow.start_run(run_id=run.info.run_id)
+        try:
+            model_uri = log_copy(source.source, family, val[[TEXT_COLUMN]].head(3), intent_names, Path(tmp))
+        finally:
+            mlflow.end_run()  # FINISHED even if the copy failed: that says nothing about the training run
 
     # The copy must give the same validation predictions the run recorded, row for row
     copy = mlflow.pyfunc.load_model(model_uri)

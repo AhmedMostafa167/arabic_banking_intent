@@ -81,7 +81,7 @@ def main() -> None:
         mlflow.log_artifact(str(settings.DATA_PROCESSED_DIR / "labels.json"))
         # Probabilities, like every model here: the API can serve whichever model is champion the same way
         mlflow.sklearn.log_model(pipeline, name="model", input_example=val[[TEXT_COLUMN]].head(3),
-                                 pyfunc_predict_fn="predict_proba", metadata={ModelMetadataEnum.INTENT_NAMES: intent_names})
+                                 pyfunc_predict_fn="predict_proba", metadata={ModelMetadataEnum.INTENT_NAMES.value: intent_names})
 
 
 if __name__ == "__main__":

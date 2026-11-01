@@ -129,7 +129,7 @@ def log_run(run_dir: Path, settings, intent_names: list[str]) -> None:
             # Logged as code: the wrapper file travels inside the model, so moving it here breaks nothing
             mlflow.pyfunc.log_model(name="model", python_model=arabert_model.__file__,
                                     artifacts={"model_dir": str(model_dir)}, input_example=val[[TEXT_COLUMN]].head(3),
-                                    metadata={ModelMetadataEnum.INTENT_NAMES: intent_names})
+                                    metadata={ModelMetadataEnum.INTENT_NAMES.value: intent_names})
     print(f"logged {info['name']} to {experiment} as run {run.info.run_id}")
 
 

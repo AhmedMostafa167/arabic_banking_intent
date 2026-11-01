@@ -12,7 +12,9 @@ class AliasEnum(StrEnum):
 
 
 class ModelMetadataEnum(StrEnum):
-    INTENT_NAMES = "intent_names"  # the 77 names, in the order of the model's probability columns
+    # The 77 names, in the order of the model's probability columns. Write it with .value: the
+    # metadata goes into the MLmodel YAML file, and the YAML writer rejects enum members
+    INTENT_NAMES = "intent_names"
 
 
 class ModelFamilyEnum(StrEnum):
