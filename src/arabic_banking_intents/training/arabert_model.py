@@ -1,9 +1,12 @@
-"""Fine-tuned AraBERT behind the same interface as the TF-IDF baseline.
+"""Fine-tuned AraBERT behind the same interface as the TF-IDF baseline, as MLflow logs it.
 
 In: a DataFrame with a `text` column. Out: one probability per intent, shape (rows, 77). The model
 folder carries everything raw text must pass through: the tokenizer, the weights, the label names
 (in the model config) and the max length (intent_model.json), so serving cannot drift from training.
-Keep this module's path stable: a registered model refers to the class by it.
+
+MLflow copies this file into every logged AraBERT model ("models from code") and runs it when the
+model loads, so a registered version does not depend on where this package keeps its modules. Keep it
+self-contained: third-party imports only.
 """
 
 import json
@@ -15,8 +18,7 @@ import pandas as pd
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from arabic_banking_intents.ml.baseline import TEXT_COLUMN
-
+TEXT_COLUMN = "text"  # the input contract; the baseline reads the same column (training/baseline.py)
 MODEL_INFO_FILE = "intent_model.json"  # written by kaggle/train_arabert.py
 
 
@@ -50,3 +52,6 @@ class AraBertIntentModel(mlflow.pyfunc.PythonModel):
 
     def predict(self, context, model_input: pd.DataFrame, params=None) -> np.ndarray:
         return self.classifier.predict_proba(model_input[TEXT_COLUMN].tolist())
+
+
+mlflow.models.set_model(AraBertIntentModel())

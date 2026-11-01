@@ -35,7 +35,7 @@ KAGGLE_INPUT = Path("/kaggle/input")
 KAGGLE_OUTPUT = Path("/kaggle/working")  # files left here become the notebook's output
 TEST_SETS = ["msa", "pal", "saudi", "moroccan", "tunisian"]
 TRAIN_FILES = {"grouped": ("train.parquet", "val.parquet"), "official": ("official_train.parquet", "official_val.parquet")}
-MODEL_INFO_FILE = "intent_model.json"  # read by arabic_banking_intents.ml.arabert_model
+MODEL_INFO_FILE = "intent_model.json"  # read by arabic_banking_intents.training.arabert_model
 
 
 # ---------------------------------------------------------------- inputs
@@ -78,7 +78,7 @@ def encode(tokenizer, frame: pd.DataFrame, max_length: int) -> list[dict]:
 
 def macro_f1(eval_prediction) -> dict:
     """Validation macro-F1 for picking the best epoch. Same definition as
-    arabic_banking_intents.ml.evaluate.macro_f1: averaged over the intents present."""
+    arabic_banking_intents.training.evaluate.macro_f1: averaged over the intents present."""
     logits, labels = eval_prediction
     predicted = logits.argmax(axis=-1)
     return {"macro_f1": f1_score(labels, predicted, labels=np.unique(labels), average="macro", zero_division=0)}

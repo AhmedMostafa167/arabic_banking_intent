@@ -18,13 +18,15 @@ import mlflow
 import numpy as np
 
 from arabic_banking_intents.helpers.config import get_settings
-from arabic_banking_intents.ml.arabert_model import AraBertClassifier, AraBertIntentModel
-from arabic_banking_intents.ml.baseline import TEXT_COLUMN
-from arabic_banking_intents.ml.data import load_label_names, load_test_sets, load_train_val
-from arabic_banking_intents.ml.evaluate import latency_ms, macro_f1
-from arabic_banking_intents.ml.tracking import connect, flatten, log_evaluation, log_val_predictions
+from arabic_banking_intents.training import arabert_model
+from arabic_banking_intents.training.arabert_model import AraBertClassifier
+from arabic_banking_intents.training.baseline import TEXT_COLUMN
+from arabic_banking_intents.training.data import load_label_names, load_test_sets, load_train_val
+from arabic_banking_intents.training.evaluate import latency_ms, macro_f1
+from arabic_banking_intents.training.tracking import connect, flatten, log_evaluation, log_val_predictions
 from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
-from arabic_banking_intents.models.enums.TrackingEnum import ComputeEnum, ExperimentEnum, ModelFamilyEnum, TagEnum
+from arabic_banking_intents.models.enums.TrackingEnum import (ComputeEnum, ExperimentEnum, ModelFamilyEnum,
+                                                              ModelMetadataEnum, TagEnum)
 
 MIN_LABEL_AGREEMENT = 0.995  # fp16 weights and another GPU/CPU may flip a few near-ties, not more
 MAX_MACRO_F1_GAP = 0.002
@@ -124,8 +126,10 @@ def log_run(run_dir: Path, settings, intent_names: list[str]) -> None:
             size_mb = sum(path.stat().st_size for path in model_dir.rglob("*") if path.is_file()) / 1e6
             mlflow.log_metrics(consistency | {"latency_p50_ms": p50, "latency_p95_ms": p95, "model_size_mb": size_mb})
             mlflow.log_artifact(str(settings.DATA_PROCESSED_DIR / "labels.json"))
-            mlflow.pyfunc.log_model(name="model", python_model=AraBertIntentModel(),
-                                    artifacts={"model_dir": str(model_dir)}, input_example=val[[TEXT_COLUMN]].head(3))
+            # Logged as code: the wrapper file travels inside the model, so moving it here breaks nothing
+            mlflow.pyfunc.log_model(name="model", python_model=arabert_model.__file__,
+                                    artifacts={"model_dir": str(model_dir)}, input_example=val[[TEXT_COLUMN]].head(3),
+                                    metadata={ModelMetadataEnum.INTENT_NAMES: intent_names})
     print(f"logged {info['name']} to {experiment} as run {run.info.run_id}")
 
 

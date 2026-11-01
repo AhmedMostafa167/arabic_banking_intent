@@ -11,7 +11,7 @@ import pandas as pd
 import yaml
 from numpy.typing import ArrayLike
 
-from arabic_banking_intents.ml.evaluate import bootstrap, evaluate, interval
+from arabic_banking_intents.training.evaluate import bootstrap, evaluate, interval
 from arabic_banking_intents.models.enums.TrackingEnum import TagEnum
 
 

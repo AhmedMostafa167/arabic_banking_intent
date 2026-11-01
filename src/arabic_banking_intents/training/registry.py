@@ -55,11 +55,16 @@ def register(
     client: MlflowClient,
     run: Run,
     model_name: str,
-    alias: AliasEnum = AliasEnum.CHAMPION,
+    alias: AliasEnum | None = AliasEnum.CHAMPION,
     note: str = "",
     extra_evidence: dict[str, str] | None = None,
+    model_uri: str | None = None,
 ) -> str:
-    """Register the run's model, record the evidence it was promoted on, and point `alias` at it."""
+    """Register the run's model, record the evidence it was promoted on, and point `alias` at it.
+
+    `model_uri` picks one model when the run holds several (a re-logged copy); `alias=None` registers
+    the version without moving any alias.
+    """
     metrics, tags = run.data.metrics, run.data.tags
     evidence = {
         "val_macro_f1": f"{metrics['val_macro_f1']:.4f}",
@@ -70,8 +75,10 @@ def register(
         TagEnum.DATA_VERSION: tags[TagEnum.DATA_VERSION],
         **(extra_evidence or {}),
     }
-    version = mlflow.register_model(logged_model_uri(run), model_name, tags=evidence)
+    version = mlflow.register_model(model_uri or logged_model_uri(run), model_name, tags=evidence)
     description = "; ".join(f"{key} {value}" for key, value in evidence.items())
     client.update_model_version(model_name, version.version, description=f"{note}\n\n{description}".strip())
+    if alias is None:
+        return f"{model_name} v{version.version} registered (no alias): {description}"
     client.set_registered_model_alias(model_name, alias, version.version)
     return f"{model_name} v{version.version} is now @{alias}: {description}"

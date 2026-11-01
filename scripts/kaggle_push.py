@@ -18,8 +18,8 @@ import time
 from importlib.metadata import version
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
-from arabic_banking_intents.ml.data import load_labels, load_official
-from arabic_banking_intents.ml.tracking import lineage_tags
+from arabic_banking_intents.training.data import load_labels, load_official
+from arabic_banking_intents.training.tracking import lineage_tags
 from arabic_banking_intents.models.enums.TrackingEnum import TagEnum
 
 TRAINING_SCRIPT = PROJECT_ROOT / "kaggle" / "train_arabert.py"

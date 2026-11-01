@@ -19,12 +19,13 @@ import mlflow
 import pandas as pd
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
-from arabic_banking_intents.ml.baseline import TEXT_COLUMN, build_pipeline
-from arabic_banking_intents.ml.data import load_label_names, load_test_sets, load_train_val
-from arabic_banking_intents.ml.evaluate import latency_ms
-from arabic_banking_intents.ml.tracking import connect, flatten, lineage_tags, log_evaluation, log_val_predictions
+from arabic_banking_intents.training.baseline import TEXT_COLUMN, build_pipeline
+from arabic_banking_intents.training.data import load_label_names, load_test_sets, load_train_val
+from arabic_banking_intents.training.evaluate import latency_ms
+from arabic_banking_intents.training.tracking import connect, flatten, lineage_tags, log_evaluation, log_val_predictions
 from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
-from arabic_banking_intents.models.enums.TrackingEnum import ComputeEnum, ExperimentEnum, ModelFamilyEnum, TagEnum
+from arabic_banking_intents.models.enums.TrackingEnum import (ComputeEnum, ExperimentEnum, ModelFamilyEnum,
+                                                              ModelMetadataEnum, TagEnum)
 
 LATENCY_SAMPLE = 200  # validation messages timed one at a time
 
@@ -80,7 +81,7 @@ def main() -> None:
         mlflow.log_artifact(str(settings.DATA_PROCESSED_DIR / "labels.json"))
         # Probabilities, like every model here: the API can serve whichever model is champion the same way
         mlflow.sklearn.log_model(pipeline, name="model", input_example=val[[TEXT_COLUMN]].head(3),
-                                 pyfunc_predict_fn="predict_proba")
+                                 pyfunc_predict_fn="predict_proba", metadata={ModelMetadataEnum.INTENT_NAMES: intent_names})
 
 
 if __name__ == "__main__":

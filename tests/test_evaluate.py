@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from arabic_banking_intents.ml.evaluate import bootstrap, evaluate, interval, macro_f1, paired_bootstrap
+from arabic_banking_intents.training.evaluate import bootstrap, evaluate, interval, macro_f1, paired_bootstrap
 
 NAMES = [f"intent_{i}" for i in range(77)]
 

@@ -11,6 +11,10 @@ class AliasEnum(StrEnum):
     CHAMPION = "champion"  # the model the API serves
 
 
+class ModelMetadataEnum(StrEnum):
+    INTENT_NAMES = "intent_names"  # the 77 names, in the order of the model's probability columns
+
+
 class ModelFamilyEnum(StrEnum):
     TFIDF_LOGREG = "tfidf-logreg"
     ARABERT = "arabert"
@@ -30,3 +34,5 @@ class TagEnum(StrEnum):
     MODEL_FAMILY = "model_family"
     TRAINED_ON = "trained_on"
     GPU = "gpu"
+    RELOGGED_FROM = "relogged_from"  # on a registered copy of an earlier version, logged again unchanged
+    RELOG_COMMIT = "relog_commit"  # the commit of the code that logged that copy

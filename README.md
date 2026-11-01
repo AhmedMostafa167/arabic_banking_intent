@@ -27,6 +27,9 @@ uv run python scripts/train_baseline.py --data grouped --experiment intent-class
 uv run python scripts/kaggle_push.py            # upload the inputs and start the training notebook
 uv run python scripts/log_kaggle_runs.py        # wait for it, download the output, log every run
 uv run python scripts/promote.py --runs <seed run IDs>   # the promotion gate against @champion
+
+# Log a registered version again, unchanged, the way models are logged now (checked against its run)
+uv run python scripts/relog_model.py --version <n> [--alias champion] --note "why"
 ```
 
 Settings such as the tracking URI and data paths live in `src/arabic_banking_intents/helpers/config.py`;

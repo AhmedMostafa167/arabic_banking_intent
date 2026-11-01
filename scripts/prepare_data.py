@@ -2,7 +2,7 @@
 
 Train and validation come from the full corpus, split by source question, so no question has
 versions on both sides (the official validation split leaks). The official test files are kept as
-published. The logic is in arabic_banking_intents.ml.data; the split settings in configs/data.toml.
+published. The logic is in arabic_banking_intents.training.data; the split settings in configs/data.toml.
 
     uv run python scripts/prepare_data.py
     dvc add data/processed
@@ -11,7 +11,7 @@ published. The logic is in arabic_banking_intents.ml.data; the split settings in
 import tomllib
 
 from arabic_banking_intents.helpers.config import get_settings
-from arabic_banking_intents.ml.data import (
+from arabic_banking_intents.training.data import (
     COLUMNS,
     build_pool,
     load_corpus,
