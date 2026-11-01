@@ -185,3 +185,38 @@ re-logged with the wrapper as code (it reproduced all 2,397 validation predictio
 - The model is not in the image: the API downloads it (0.27 GB) at startup. The image holds the
   Python environment, 1.56 GB of packages, and **torch alone is 0.81 GB of it** (then transformers
   0.12, scipy 0.11, pandas 0.08 GB). Load testing under concurrent users comes in step 4b.
+
+## Entry 4 — Rung 0: the PyTorch model under load (2026-11-02)
+
+**Question.** How does the served PyTorch AraBERT behave as concurrent users grow, and where does
+it saturate? These are the reference numbers for every rung of the optimisation ladder (step 4c).
+No prediction was written.
+
+**Measure.** `benchmarks/run_benchmark.py --rung "0 pytorch fp32"`, commit `dda4604`, serving v5.
+The API container is limited to 3 of the laptop's 4 CPUs (the fourth runs Locust), with one
+uvicorn worker and PyTorch's default threads. Each simulated user sends a real message from the
+five test sets, then waits 1–2 s. Each level ran for 90 s, three times; 1,589 requests, none failed.
+13 runs in the MLflow experiment `serving-benchmarks`.
+
+| Users | p50 | p95 (range over 3 repeats) | p99 | Requests/s | CPU (of 300%) |
+|---|---|---|---|---|---|
+| 1 | 420 ms | 870 ms (850–990) | 1,100 ms | 0.53 | 44% |
+| 2 | 480 ms | 900 ms (750–930) | 1,200 ms | 1.10 | 88% |
+| 4 | 670 ms | 1,400 ms (1,300–1,400) | 1,800 ms | 1.88 | 156% |
+| 8 | 1,400 ms | 2,200 ms (2,100–2,300) | 2,500 ms | 2.98 | 246% |
+
+Cold start 81 s; memory 1.23 GB when idle, 1.27 GB at most under load; image 2.26 GB.
+
+- **Up to 2 users it keeps up:** throughput doubles and p50 barely moves.
+- **It saturates between 4 and 8 users:** going from 4 to 8 users doubles p50, while throughput
+  grows only 58%. About 3 requests per second is the most this setup absorbs.
+- **Requests slow each other down before the CPU runs out:** at 4 users, CPU is about half of the
+  limit, yet p50 is already 60% above the single-user figure. A hypothesis for the thread-count
+  rung: PyTorch starts a thread per core it can see (4) for every request, so concurrent requests
+  oversubscribe the 3 CPUs.
+- **Noise floor:** p95 moves by up to about 20% between identical runs (750–930 ms at 2 users). A
+  rung in 4c counts as faster only if it beats that.
+- Memory stays flat under load, so the limit is CPU time per request, not memory.
+
+**Decision.** Every 4c rung is benchmarked with the same command and compared with these medians at
+the same user counts.
