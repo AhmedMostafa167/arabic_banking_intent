@@ -4,14 +4,14 @@ version = "0.1.0"
 description = "Arabic banking intent classifier (ArBanking77)."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
+# Needed wherever a registered model is loaded: the API, the training scripts and the tests
 dependencies = [
-    "mlflow>=3.17.2",
+    "mlflow-skinny>=3.17.2",  # the MLflow client only; the full package (with the server) is in `training`
     "numpy>=2",
     "pandas>=2.2",
-    "pyarrow>=17",
     "pydantic-settings>=2.16.1",
-    "pyyaml>=6.0.3",
     "scikit-learn>=1.5",
+    "skops>=0.16.0",  # the TF-IDF model's file format
     "torch>=2.15.0",
     "transformers>=5.22.1",
 ]
@@ -20,12 +20,27 @@ dependencies = [
 requires = ["uv_build>=0.11,<0.12"]
 build-backend = "uv_build"
 
+# The Docker image installs only `serving`: uv sync --no-default-groups --group serving
 [dependency-groups]
+serving = [
+    "fastapi>=0.162.0",
+    "prometheus-client>=0.26.0",
+    "uvicorn>=0.54.0",
+]
+training = [
+    "mlflow>=3.17.2",
+    "pyarrow>=17",
+    "pyyaml>=6.0.3",
+]
 dev = [
     "accelerate>=1.15.0",
+    "httpx>=0.28.1",
     "ipykernel>=6.29",
     "pytest>=9.1.1",
 ]
+
+[tool.uv]
+default-groups = ["serving", "training", "dev"]  # everything, for local work
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

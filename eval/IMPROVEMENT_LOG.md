@@ -158,3 +158,30 @@ and 5). The champion is the re-logged baseline, v3 (the same model as v1, return
 gated, as agreed, and half a second per message on this laptop is the first problem for serving
 (step 4). Comparing two AraBERT models on one dialect needs several seeds: a single seed can move
 the Tunisian score by 4 points.
+
+## Entry 3 — Serving the champion: the starting numbers (2026-11-01)
+
+**Question.** What does serving the PyTorch AraBERT cost on this laptop, before any optimisation?
+These are the "before" numbers for the optimisation ladder (step 4c). No prediction was written.
+
+**Measure.** `docker compose up` (MLflow + the API) on the laptop (AMD A10, 4 cores, 4.9 GB under
+WSL). The API loads `@champion` from the registry at startup. Champion: v5, the same weights as v4,
+re-logged with the wrapper as code (it reproduced all 2,397 validation predictions of v4's run).
+
+| | AraBERT (v5) | TF-IDF (v6) |
+|---|---|---|
+| Image size | 2.26 GB (the image is the same for both) | 2.26 GB |
+| Cold start: container start → model loaded and checked | 109 s | not measured |
+| Memory when idle | 1.18 GB | not measured |
+| One request at a time over HTTP, 300 validation texts: p50 / p95 | 398 / 618 ms | 31 / 86 ms |
+| HTTP answers = the run's validation predictions | 300 / 300 | 300 / 300 |
+
+- **Switching the served model needs no rebuild and no code change:** moving `@champion` to v6 and
+  restarting the API container served TF-IDF 61 s later; moving it back restored AraBERT.
+- **A wrong model name stops the container** (exit code 3, "no version of 'no-such-model' has the
+  alias @champion") instead of starting and failing every request.
+- TF-IDF answers in 31 ms over HTTP but 12 ms when called directly, so about 20 ms of each request is
+  HTTP, validation and DataFrame overhead rather than the model.
+- The model is not in the image: the API downloads it (0.27 GB) at startup. The image holds the
+  Python environment, 1.56 GB of packages, and **torch alone is 0.81 GB of it** (then transformers
+  0.12, scipy 0.11, pandas 0.08 GB). Load testing under concurrent users comes in step 4b.

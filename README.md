@@ -17,8 +17,9 @@ uv run python scripts/prepare_data.py       # rebuild data/processed/ from data/
 uv run pytest                               # run the tests
 
 # MLflow tracking server and model registry: SQLite + local files, at http://127.0.0.1:5000
-uv run mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts \
-    --host 127.0.0.1 --port 5000 --workers 1
+# (job execution off: MLflow 3's GenAI background workers, unused here, take about 1.2 GB)
+MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false uv run mlflow server --backend-store-uri sqlite:///mlflow.db \
+    --artifacts-destination ./mlartifacts --host 127.0.0.1 --port 5000 --workers 1
 
 # The TF-IDF baseline (settings in configs/baseline.toml); commit first, so the run records clean code
 uv run python scripts/train_baseline.py --data grouped --experiment intent-classifier
@@ -31,6 +32,24 @@ uv run python scripts/promote.py --runs <seed run IDs>   # the promotion gate ag
 # Log a registered version again, unchanged, the way models are logged now (checked against its run)
 uv run python scripts/relog_model.py --version <n> [--alias champion] --note "why"
 ```
+
+## Serving
+
+The API loads the model the `champion` alias points to, once, at startup; the model is not in the image.
+
+```bash
+docker compose up --build          # MLflow + the API; stop any MLflow server on the host first
+curl -s localhost:8000/api/v1/info # which model version is serving
+curl -s localhost:8000/api/v1/predict -H 'content-type: application/json' -d '{"text": "وين بطاقتي الجديدة؟"}'
+uv run python scripts/check_serving.py   # the API must answer like the model did offline
+
+# Or the API alone, on the host, against a host MLflow server
+uv run uvicorn arabic_banking_intents.serving.main:app
+```
+
+Endpoints: `POST /api/v1/predict` (top 3 intents with probabilities), `GET /api/v1/health` (liveness),
+`/api/v1/ready` (readiness: model loaded), `/api/v1/info` (the version serving), `/metrics` (Prometheus).
+To serve another version, move the alias and restart the `api` container; nothing is rebuilt.
 
 Settings such as the tracking URI and data paths live in `src/arabic_banking_intents/helpers/config.py`;
 copy `.env.example` to `.env` to change them.

@@ -1,0 +1,41 @@
+# The local stack: the MLflow tracking server and registry, and the prediction API that loads
+# @champion from it at startup.
+#
+#   docker compose up --build        # stop any MLflow server already running on the host first:
+#                                    # one server at a time on the same mlflow.db
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.17.2  # the version in uv.lock
+    # The same registry the training scripts use. The whole project folder is mounted so SQLite's
+    # journal file sits next to mlflow.db, as it does when the server runs on the host
+    command: >
+      mlflow server --backend-store-uri sqlite:////project/mlflow.db --artifacts-destination /project/mlartifacts
+      --host 0.0.0.0 --port 5000 --workers 1
+      --allowed-hosts mlflow:5000,localhost:5000,127.0.0.1:5000
+    volumes:
+      - .:/project
+    user: "1000:1000"  # files it writes stay owned by the host user, so host-side scripts can still write
+    environment:
+      HOME: /tmp
+      # Off: MLflow 3's background job workers (GenAI online scoring), which we don't use, start 7
+      # extra processes of about 200 MB each
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
+    ports:
+      - "127.0.0.1:5000:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      start_period: 180s  # failures while the server starts don't count
+      interval: 10s
+      timeout: 15s
+      retries: 6
+
+  api:
+    build: .
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000  # the service name: inside a container, localhost is the container
+      MODEL_ALIAS: champion
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      mlflow:
+        condition: service_healthy  # start only once the registry answers
