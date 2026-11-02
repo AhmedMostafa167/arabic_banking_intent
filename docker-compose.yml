@@ -35,7 +35,10 @@ services:
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000  # the service name: inside a container, localhost is the container
       MODEL_ALIAS: champion
-      INFERENCE_THREADS: ${INFERENCE_THREADS:-0}  # ONNX models: threads per request (0 = the runtime decides)
+      # ONNX models: threads per request. Measured 2026-11-02: the runtime's own choice (0) counts the
+      # host's 4 cores, not this container's 3 CPUs, and latency collapsed (p50 3.7 s at 2 users); 1 thread
+      # was best or tied up to 4 users, with the least CPU
+      INFERENCE_THREADS: ${INFERENCE_THREADS:-1}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

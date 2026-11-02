@@ -10,6 +10,7 @@ Entries are in the order the work happened.
 |---|---|---|---|---|---|
 | 1 | 2026-10-25 | Our validation split instead of the official one (TF-IDF baseline) | Validation macro-F1 | official 0.919 | ours 0.887 (−3.2 points, all leak) |
 | 2 | 2026-11-01 | Fine-tuned AraBERT instead of TF-IDF (champion v3 → v4) | Validation macro-F1 | 0.887 | 0.918, mean of 3 seeds (+3.2 points, above the noise for every seed) |
+| 5 | 2026-11-02 | The champion served as ONNX fp16 without torch (v5 → v7) | Image; idle memory; served p50 at 4 users | 2.26 GB; 1.23 GB; 670 ms | 0.95 GB; 0.86 GB; 530 ms, with the same answers |
 
 ## How the numbers are produced
 
@@ -220,3 +221,67 @@ Cold start 81 s; memory 1.23 GB when idle, 1.27 GB at most under load; image 2.2
 
 **Decision.** Every 4c rung is benchmarked with the same command and compared with these medians at
 the same user counts.
+
+## Entry 5 — The optimisation ladder: ONNX, graph fusion, fp16, int8, threads (2026-11-02)
+
+**Question.** How much faster and cheaper can the champion get on this laptop's CPU without losing
+quality, and what does each step cost? No predictions were written. Measured lean, as agreed on
+2026-11-02: one timing run per variant, no per-dialect test sets, one short load test per setting.
+
+**Offline: every variant built from v5 and checked.** `scripts/build_variants.py`, commits `a3b9610`
+and `aa83007`, MLflow experiment `optimisation`. Quality is checked on all 2,397 validation texts.
+Latency is per message, over 200 validation texts one at a time, with all variants timed back to back
+in one run. The laptop was short of memory, so compare rows rather than absolute numbers.
+
+| Rung | Size | p50 / p95 | Validation macro-F1 | Same labels as v5 | Change, 95% interval (points) | Check |
+|---|---|---|---|---|---|---|
+| PyTorch fp32 (v5) | 272 MB (fp16 file) | 1,403 / 4,017 ms | 0.919 | | | reference |
+| ONNX fp32 | 543 MB | 460 / 823 ms | 0.919 | 100% | | same model |
+| + graph optimisation | 543 MB | 351 / 812 ms | 0.919 | 100% | | same model |
+| fp16 | 272 MB | 378 / 863 ms | 0.919 | 100% | 0.00 to 0.00 | **pass** |
+| int8 dynamic | 138 MB | 339 / 672 ms | 0.842 | 85% | −9.40 to −6.18 | fail |
+| int8 selective | 287 MB | 318 / 602 ms | 0.915 | 97% | −1.05 to +0.19 | fail |
+| int8 static | about 135 MB | 2,593 ms (10-message probe) | not checked | | | dropped |
+
+- **Graph optimisation fused every layer:** the 12 attention blocks, 12 GELUs, 24 residual-add +
+  LayerNorms and the embeddings each became one operation, for a p50 about 24% below plain ONNX.
+- **fp16 halves the size with identical labels**, and is no faster: this CPU has no fp16 arithmetic.
+- **int8 dynamic is 4× smaller but loses 7.7 points.** On a CPU without VNNI, int8 products can
+  saturate. int8 selective (7-bit per-channel weights; embeddings, pooler and classifier kept in fp32)
+  recovers most of it, losing 0.4 points at best estimate. But its interval cannot rule out a loss of a
+  full point, so it fails the 0.5-point gate.
+- **int8 static took 2 hours to calibrate and ran 4.6× slower than fp32.** Without VNNI or AVX2,
+  ONNX Runtime has no fast kernels for its quantise-dequantise format.
+- Two thread sweeps outside the container contradicted each other (memory pressure), so no
+  conclusion was drawn from them.
+
+**Served: v7 (fp16) from the image without torch.** `docker compose` with 3 CPUs, 60 s per level,
+one repeat; rung 0 is the median of three (entry 4). Each cell is p50 / p95, then requests per second.
+
+| Users | PyTorch (rung 0) | fp16, threads left to the runtime | fp16, 1 thread | fp16, 3 threads |
+|---|---|---|---|---|
+| 1 | 420 / 870 ms, 0.53 | 1,000 / 4,500 ms, 0.38 | 350 / 770 ms, 0.59 | 520 / 1,400 ms, 0.53 |
+| 2 | 480 / 900 ms, 1.10 | 3,700 / 8,000 ms, 0.35 | 500 / 1,600 ms, 1.05 | 390 / 1,500 ms, 1.08 |
+| 4 | 670 / 1,400 ms, 1.88 | 1,200 / 3,400 ms, 1.57 | 530 / 1,500 ms, 2.25 | 480 / 1,300 ms, 2.12 |
+| 8 | 1,400 / 2,200 ms, 2.98 | not run | 860 / 4,000 ms, 2.92 | 1,000 / 3,300 ms, 3.24 |
+
+| | PyTorch (v5) | ONNX fp16 (v7) |
+|---|---|---|
+| Image | 2.26 GB | **0.95 GB** |
+| Memory when idle | 1.23 GB | **0.84–0.89 GB** |
+| Cold start | 81 s | 60–105 s |
+| HTTP answers = offline predictions | 300 / 300 | 100 / 100 |
+
+- **The thread count decides whether the ONNX model is usable in a container.** Left to choose, ONNX
+  Runtime started a thread per host core (4) in a container allowed 3 CPUs. One request then used 2
+  CPUs, and with 2 users the median wait was 3.7 s. One thread fixed it, and the compose default is
+  now 1.
+- **Served, the speed gain is modest:** about 25–40% lower median latency at 4–8 users. The ceiling
+  stays at about 3 requests per second, because the CPU is the limit, and the tail at 8 users is no
+  better. The offline 3–4× came mostly from timing PyTorch while it was swapping.
+- **The clear wins are cost:** an image 58% smaller and about 30% less memory, with the same answers.
+
+**Decision.** v7 (ONNX fp16, 1 thread) is the champion. int8 is not worth it on this CPU. On a CPU
+with VNNI, such as most recent x86 servers, int8 is usually where the big speed-up is, so it is worth
+measuring again there. Rolling back to PyTorch v5 needs the `arabic-banking-intents-api:pytorch`
+image, not only a move of the alias.
