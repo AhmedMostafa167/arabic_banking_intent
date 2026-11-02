@@ -3,6 +3,7 @@
     hf auth login                       # once; the token stays in ~/.cache/huggingface, never in this repo
     uv run python scripts/publish_model.py --repo-id <user>/<name> --dry-run   # build the folder, upload nothing
     uv run python scripts/publish_model.py --repo-id <user>/<name> [--private]
+    uv run python scripts/publish_model.py --repo-id <user>/<name> --card-only   # after editing the card
 
 The repository gets the PyTorch weights of --pytorch-version at its root (loadable with
 transformers), the ONNX graph of --onnx-version in onnx/, and docs/MODEL_CARD.md as its README. Both
@@ -32,7 +33,14 @@ def main() -> None:
     parser.add_argument("--onnx-version", default="7")
     parser.add_argument("--private", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="build runs/hub/<name> and stop")
+    parser.add_argument("--card-only", action="store_true", help="upload only docs/MODEL_CARD.md as the README")
     args = parser.parse_args()
+
+    if args.card_only:
+        HfApi().upload_file(path_or_fileobj=MODEL_CARD.read_text().replace("<this repository>", args.repo_id).encode(),
+                            path_in_repo="README.md", repo_id=args.repo_id, commit_message="Update the model card")
+        print(f"updated the card of https://huggingface.co/{args.repo_id}")
+        return
 
     settings = get_settings()
     connect(settings.MLFLOW_TRACKING_URI)

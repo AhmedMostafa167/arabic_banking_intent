@@ -21,7 +21,8 @@ arrival", "exchange rate", "transfer fee charged", ...). It is
 [`aubmindlab/bert-base-arabertv02`](https://huggingface.co/aubmindlab/bert-base-arabertv02),
 fully fine-tuned on Modern Standard Arabic and Palestinian queries and tested on five varieties.
 Built with a production-style system around it: versioned data, tracked runs, a registry with
-promotion gates, and a served, monitored API (source: <!-- repository link -->).
+promotion gates, and a served, monitored API (source:
+[github.com/AhmedMostafa167/arabic_banking_intent](https://github.com/AhmedMostafa167/arabic_banking_intent)).
 
 Two formats are included:
 
