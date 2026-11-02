@@ -17,7 +17,6 @@ its evidence, and registered. Commit first.
 
 import argparse
 import gc
-import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -25,7 +24,6 @@ from pathlib import Path
 import mlflow
 import numpy as np
 from mlflow import MlflowClient
-from mlflow.models import Model
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
 from arabic_banking_intents.training import onnx_model, variants
@@ -34,7 +32,7 @@ from arabic_banking_intents.training.baseline import TEXT_COLUMN
 from arabic_banking_intents.training.data import load_label_names, load_train_val
 from arabic_banking_intents.training.evaluate import interval, latency_ms, macro_f1, paired_bootstrap
 from arabic_banking_intents.training.onnx_model import OnnxClassifier
-from arabic_banking_intents.training.registry import register, val_predictions
+from arabic_banking_intents.training.registry import download_model_folder, register, val_predictions
 from arabic_banking_intents.training.tracking import connect, lineage_tags, log_evaluation, log_val_predictions
 from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
 from arabic_banking_intents.models.enums.TrackingEnum import (AliasEnum, ExperimentEnum, ModelFamilyEnum,
@@ -53,17 +51,6 @@ SAME_MODEL_RUNGS = {"onnx-fp32", "onnx-optimised"}
 
 def folder_mb(path: Path) -> float:
     return sum(file.stat().st_size for file in path.rglob("*") if file.is_file()) / 1e6
-
-
-def source_folder(source_uri: str, cache: Path) -> Path:
-    """The registered AraBERT version's model folder, downloaded once."""
-    if not (cache / "intent_model.json").exists():
-        with tempfile.TemporaryDirectory() as tmp:
-            local = Path(mlflow.artifacts.download_artifacts(artifact_uri=source_uri, dst_path=tmp))
-            stored = Model.load(local / "MLmodel").flavors["python_function"]["artifacts"]["model_dir"]["path"]
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            (local / stored).rename(cache)
-    return cache
 
 
 def build(rung: str, root: Path, source: Path, calibration_texts: list[str]) -> None:
@@ -174,7 +161,7 @@ def main() -> None:
     saved = saved["predicted"].to_numpy()
     intent_names = load_label_names(settings.DATA_PROCESSED_DIR)
     root = settings.RUNS_DIR / "variants"
-    source_dir = source_folder(source.source, root / f"v{args.from_version}-pytorch")
+    source_dir = download_model_folder(source.source, root / f"v{args.from_version}-pytorch")
 
     if args.register:
         register_variant(args, client, settings, lineage, source, val, saved, intent_names)

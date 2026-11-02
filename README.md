@@ -1,14 +1,57 @@
 # Arabic banking intent classifier
 
 Classifies Arabic banking customer messages into 77 intents (ArBanking77), with a production-standard
-system around the model.
+system around the model: versioned data, tracked runs, a model registry with promotion gates, a served
+and load-tested API, and the measured trade-offs of every optimisation.
 
-**Status:** data pipeline, TF-IDF baseline, AraBERT fine-tuning and serving done. The champion is the
-fine-tuned AraBERT as ONNX fp16 (validation macro-F1 0.919 against the baseline's 0.887), served by a
-FastAPI container without PyTorch (0.95 GB image). Next: the model card.
-Measured results are in [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md).
+**Status:** the model is fine-tuned AraBERT, served as ONNX fp16 by a FastAPI container without PyTorch.
+Next: monitoring (Prometheus and Grafana). The model card is [docs/MODEL_CARD.md](docs/MODEL_CARD.md),
+the data card [docs/DATA_CARD.md](docs/DATA_CARD.md), and every measured change, with the prediction
+written before it, is in [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md).
+
+## Results
+
+Macro-F1 on the official test sets and on a validation split that, unlike the official one, shares no
+source question with training (the official split inflates scores by about 3 points):
+
+| | Validation | MSA | Palestinian | Saudi | Moroccan | Tunisian |
+|---|---|---|---|---|---|---|
+| TF-IDF + logistic regression | 0.887 | 0.881 | 0.852 | 0.719 | 0.612 | 0.499 |
+| Fine-tuned AraBERT (served) | **0.919** | **0.919** | **0.899** | **0.843** | **0.779** | **0.599** |
+
+Training data covers MSA and Palestinian only; Saudi, Moroccan and Tunisian are unseen dialects.
+
+| Serving, on a 2014 laptop CPU in a 3-CPU container | PyTorch | ONNX fp16 |
+|---|---|---|
+| Container image | 2.26 GB | 0.95 GB |
+| Memory when idle | 1.23 GB | 0.86 GB |
+| Median latency, 4 concurrent users | 670 ms | 530 ms |
+
+What was learned along the way, briefly:
+- The official validation split leaks paraphrases, so a grouped split was built.
+- AraBERT beat the baseline beyond the noise for every seed (a paired bootstrap gate), with the
+  largest gains on unseen dialects.
+- int8 quantisation did not pay off on a CPU without VNNI.
+- In a container, ONNX Runtime's default thread count made latency collapse.
+
+Details: [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md); bugs and surprises:
+[docs/log.md](docs/log.md).
+
+## How it fits together
+
+```
+data/raw ──prepare_data.py──► data/processed (DVC) ──► training: TF-IDF on the laptop, AraBERT on Kaggle
+                                                              │ runs, metrics, lineage tags
+                                                              ▼
+            MLflow tracking + registry (aliases: @champion) ◄── promotion gates (paired bootstrap)
+                                                              │ loaded at startup by alias
+                                                              ▼
+                       FastAPI container (/api/v1/predict, /metrics) ◄── Locust load tests
+```
 
 Data: [ArBanking77](https://github.com/SinaLab/ArBanking77) by SinaLab, Birzeit University (CC BY-SA 4.0).
+A related public study of ArBanking77's dialects:
+[AmrKhalil9/arabic-banking-intent-dialects](https://github.com/AmrKhalil9/arabic-banking-intent-dialects).
 
 ## Running
 

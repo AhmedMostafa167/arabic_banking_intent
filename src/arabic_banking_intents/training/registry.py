@@ -1,11 +1,14 @@
 """The model registry: the checks a run must pass to be served, and the record a version carries."""
 
+import shutil
 import tempfile
+from pathlib import Path
 
 import mlflow
 import pandas as pd
 from mlflow import MlflowClient
 from mlflow.entities import Run
+from mlflow.models import Model
 
 from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
 from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum, ExperimentEnum, TagEnum
@@ -40,6 +43,18 @@ def logged_model_uri(run: Run) -> str:
     if len(logged) != 1:
         raise SystemExit(f"expected one logged model in run {run.info.run_id}, found {len(logged)}")
     return logged[0].model_uri
+
+
+def download_model_folder(model_uri: str, destination: Path) -> Path:
+    """The model folder inside a logged pyfunc model (its `model_dir` artifact), copied to `destination` once."""
+    if not destination.exists():
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(mlflow.artifacts.download_artifacts(artifact_uri=model_uri, dst_path=tmp))
+            # MLmodel maps each artifact key to where it was stored (named after the source folder, not the key)
+            stored = Model.load(local / "MLmodel").flavors["python_function"]["artifacts"]["model_dir"]["path"]
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(local / stored, destination)
+    return destination
 
 
 def val_predictions(run_id: str) -> pd.DataFrame:
