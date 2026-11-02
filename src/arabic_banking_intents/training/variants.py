@@ -66,18 +66,47 @@ def to_fp16(fp32: Path, out: Path) -> None:
     model.save_model_to_file(str(target))
 
 
-def int8_dynamic(optimised: Path, out: Path) -> None:
+def _prepared(fp32: Path, out: Path) -> Path:
+    """The fp32 graph with every tensor's type and shape written in, which quantisation needs.
+
+    Standard ONNX shape inference only: ONNX Runtime's symbolic one gives up on our dynamic batch and
+    sequence sizes, and the fused graph's custom operations hide the types quantisation looks up.
+    """
+    from onnxruntime.quantization.shape_inference import quant_pre_process
+
+    prepared = out / "prepared.onnx"
+    quant_pre_process(str(fp32 / "model.onnx"), str(prepared), skip_symbolic_shape=True)
+    return prepared
+
+
+def int8_dynamic(fp32: Path, out: Path) -> None:
     """Weights to int8 once; each activation's range is measured, and converted, on every call."""
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
-    target = _model_folder(optimised, out)
-    quantize_dynamic(str(optimised / "model.onnx"), str(target), weight_type=QuantType.QInt8)
+    target = _model_folder(fp32, out)
+    prepared = _prepared(fp32, out)
+    quantize_dynamic(str(prepared), str(target), weight_type=QuantType.QInt8)
+    prepared.unlink()
+
+
+def int8_selective(fp32: Path, out: Path) -> None:
+    """int8 dynamic made gentler for CPUs without VNNI, where 8-bit products can saturate.
+
+    7-bit weights (reduce_range), one scale per output channel instead of per matrix, and only the
+    encoder's MatMuls quantised: the embeddings (Gather), pooler and classifier (Gemm) stay fp32.
+    """
+    from onnxruntime.quantization import QuantType, quantize_dynamic
+
+    target = _model_folder(fp32, out)
+    prepared = _prepared(fp32, out)
+    quantize_dynamic(str(prepared), str(target), weight_type=QuantType.QInt8, per_channel=True, reduce_range=True,
+                     op_types_to_quantize=["MatMul"])
+    prepared.unlink()
 
 
 def int8_static(fp32: Path, out: Path, calibration: list[dict[str, np.ndarray]]) -> None:
     """Weights and activations to int8, with each activation's range fixed in advance from calibration batches."""
     from onnxruntime.quantization import CalibrationDataReader, QuantFormat, QuantType, quantize_static
-    from onnxruntime.quantization.shape_inference import quant_pre_process
 
     class Batches(CalibrationDataReader):
         def __init__(self):
@@ -87,8 +116,7 @@ def int8_static(fp32: Path, out: Path, calibration: list[dict[str, np.ndarray]])
             return next(self.batches, None)
 
     target = _model_folder(fp32, out)
-    prepared = out / "prepared.onnx"
-    quant_pre_process(str(fp32 / "model.onnx"), str(prepared))  # shape inference, which quantisation needs
+    prepared = _prepared(fp32, out)
     quantize_static(str(prepared), str(target), Batches(), quant_format=QuantFormat.QDQ,
                     weight_type=QuantType.QInt8, activation_type=QuantType.QInt8)
     prepared.unlink()

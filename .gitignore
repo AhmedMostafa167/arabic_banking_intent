@@ -8,3 +8,7 @@ mlflow.db
 mlartifacts/
 mlruns/
 runs/
+
+# Temporary files ONNX Runtime's quantisation tools can leave in the working directory
+/*.onnx
+/*.data

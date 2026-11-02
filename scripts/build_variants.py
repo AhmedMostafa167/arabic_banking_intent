@@ -1,6 +1,7 @@
 """Build the ONNX variants of a registered AraBERT version and measure each: the optimisation ladder.
 
-    uv run python scripts/build_variants.py --from-version 5
+    uv run python scripts/build_variants.py --from-version 5                          # every rung
+    uv run python scripts/build_variants.py --from-version 5 --rungs onnx-int8-static # only some
     uv run python scripts/build_variants.py --from-version 5 --register onnx-int8-dynamic --alias champion --note "why"
 
 The variants go to runs/variants/<rung>/ (an existing one is reused). Each is measured the same
@@ -45,7 +46,8 @@ LATENCY_SAMPLE = 200
 SWEEP_SAMPLE = 100
 CALIBRATION_PER_GROUP = 2  # train texts per (intent, dialect): 77 x 2 x 2 = 308 for int8-static
 CALIBRATION_BATCH = 16
-RUNGS = ["onnx-fp32", "onnx-optimised", "onnx-fp16", "onnx-int8-dynamic", "onnx-int8-static"]
+REFERENCE = "pytorch-fp32"
+RUNGS = ["onnx-fp32", "onnx-optimised", "onnx-fp16", "onnx-int8-dynamic", "onnx-int8-static", "onnx-int8-selective"]
 SAME_MODEL_RUNGS = {"onnx-fp32", "onnx-optimised"}
 
 
@@ -75,7 +77,9 @@ def build(rung: str, root: Path, source: Path, calibration_texts: list[str]) -> 
     elif rung == "onnx-fp16":
         variants.to_fp16(root / "onnx-fp32", out)
     elif rung == "onnx-int8-dynamic":
-        variants.int8_dynamic(root / "onnx-optimised", out)
+        variants.int8_dynamic(root / "onnx-fp32", out)
+    elif rung == "onnx-int8-selective":
+        variants.int8_selective(root / "onnx-fp32", out)
     elif rung == "onnx-int8-static":
         reader = OnnxClassifier(root / "onnx-fp32")
         batches = [reader.feed(calibration_texts[i:i + CALIBRATION_BATCH])
@@ -149,6 +153,8 @@ def register_variant(args, client, settings, lineage, source, val, saved, intent
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build and measure the ONNX variants of an AraBERT version.")
     parser.add_argument("--from-version", required=True)
+    parser.add_argument("--rungs", nargs="+", choices=[REFERENCE, *RUNGS, "speed", "threads"], default=[REFERENCE, *RUNGS, "speed", "threads"],
+                        help="measure only these (built variants are reused)")
     parser.add_argument("--register", choices=RUNGS, help="log and register this rung (built, and passing its check)")
     parser.add_argument("--alias", type=AliasEnum, choices=list(AliasEnum), default=None)
     parser.add_argument("--note", default="")
@@ -177,27 +183,48 @@ def main() -> None:
     mlflow.set_experiment(ExperimentEnum.OPTIMISATION)
     tags = {**lineage, TagEnum.DERIVED_FROM: f"v{args.from_version}"}
     calibration = train.groupby(["label", "dialect"]).sample(n=CALIBRATION_PER_GROUP, random_state=0)[TEXT_COLUMN].tolist()
-    # The original: its validation predictions are the saved ones; its latency is measured like every variant's
-    reference = AraBertClassifier(source_dir)
-    p50, p95 = latency_ms(lambda text: reference.predict_proba([text]), val[TEXT_COLUMN].tolist()[:LATENCY_SAMPLE])
-    rows = [{"rung": "pytorch-fp32", "gate": "reference", "model_size_mb": folder_mb(source_dir), "latency_p50_ms": p50,
-             "latency_p95_ms": p95, "val_macro_f1": macro_f1(val["label"], saved), "label_agreement": 1.0,
-             "gain_ci_low_points": 0.0, "gain_ci_high_points": 0.0}]
-    del reference
-    for rung in RUNGS:
+    rows = []
+    if REFERENCE in args.rungs:
+        # The original: its validation predictions are the saved ones; its latency is measured like every variant's
+        reference = AraBertClassifier(source_dir)
+        p50, p95 = latency_ms(lambda text: reference.predict_proba([text]), val[TEXT_COLUMN].tolist()[:LATENCY_SAMPLE])
+        rows.append({"rung": REFERENCE, "gate": "reference", "model_size_mb": folder_mb(source_dir), "latency_p50_ms": p50,
+                     "latency_p95_ms": p95, "val_macro_f1": macro_f1(val["label"], saved), "label_agreement": 1.0,
+                     "gain_ci_low_points": 0.0, "gain_ci_high_points": 0.0})
+        log_rung(rows[-1], tags)
+        del reference
+    for rung in [rung for rung in RUNGS if rung in args.rungs]:
         print(f"{rung}: building and measuring", flush=True)
         try:
             build(rung, root, source_dir, calibration)
-            rows.append(measure(rung, OnnxClassifier(root / rung).predict_proba, folder_mb(root / rung), val, saved))
+            classifier = OnnxClassifier(root / rung)
+            rows.append(measure(rung, classifier.predict_proba, folder_mb(root / rung), val, saved))
+            del classifier  # one model in memory at a time: this laptop has little to spare
         except Exception as error:  # a rung that cannot run on this CPU is a result too
             rows.append({"rung": rung, "gate": f"could not run: {type(error).__name__}: {str(error)[:120]}"})
+        log_rung(rows[-1], tags)  # at once, so a crash later loses only the rung in progress
         gc.collect()
-    for row in rows:
-        log_rung(row, tags)
-    print("thread sweep on onnx-optimised:", flush=True)
-    sweep = thread_sweep(root / "onnx-optimised", val[TEXT_COLUMN].tolist()[:SWEEP_SAMPLE])
-    with mlflow.start_run(run_name="thread sweep (onnx-optimised)", tags={**tags, TagEnum.RUNG: "threads"}):
-        mlflow.log_metrics(sweep)
+    if "speed" in args.rungs:
+        # Every built variant timed back to back on the same messages, so all share the machine's conditions
+        print("speed, back to back:", flush=True)
+        speed = {}
+        for rung in [REFERENCE, *RUNGS]:
+            folder = source_dir if rung == REFERENCE else root / rung
+            if rung != REFERENCE and not (folder / "model.onnx").exists():
+                continue
+            classifier = AraBertClassifier(folder) if rung == REFERENCE else OnnxClassifier(folder)
+            p50, p95 = latency_ms(lambda text: classifier.predict_proba([text]), val[TEXT_COLUMN].tolist()[:LATENCY_SAMPLE])
+            speed |= {f"{rung}_p50_ms": p50, f"{rung}_p95_ms": p95}
+            print(f"  {rung:20} p50 {p50:5.0f} ms, p95 {p95:5.0f} ms", flush=True)
+            del classifier
+            gc.collect()
+        with mlflow.start_run(run_name="speed, back to back", tags={**tags, TagEnum.RUNG: "speed"}):
+            mlflow.log_metrics(speed)
+    if "threads" in args.rungs:
+        print("thread sweep on onnx-optimised:", flush=True)
+        sweep = thread_sweep(root / "onnx-optimised", val[TEXT_COLUMN].tolist()[:SWEEP_SAMPLE])
+        with mlflow.start_run(run_name="thread sweep (onnx-optimised)", tags={**tags, TagEnum.RUNG: "threads"}):
+            mlflow.log_metrics(sweep)
 
     print(f"\n{'rung':20} {'size MB':>8} {'p50 ms':>7} {'p95 ms':>7} {'macro-F1':>9} {'same labels':>11} "
           f"{'change, 95% (points)':>21}  check")
