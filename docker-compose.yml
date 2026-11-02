@@ -1,5 +1,6 @@
-# The local stack: the MLflow tracking server and registry, and the prediction API that loads
-# @champion from it at startup.
+# The local stack: the MLflow tracking server and registry, the prediction API that loads @champion
+# from it at startup, and the monitoring: Prometheus (localhost:9090), which scrapes the API and the
+# machine, and Grafana (localhost:3000), with a model dashboard and a system dashboard.
 #
 #   docker compose up --build        # stop any MLflow server already running on the host first:
 #                                    # one server at a time on the same mlflow.db
@@ -41,6 +42,48 @@ services:
       INFERENCE_THREADS: ${INFERENCE_THREADS:-1}
     ports:
       - "127.0.0.1:8000:8000"
+    healthcheck:  # the image's check, with more time: starting Python for it took over 5 s when memory was short
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/ready')"]
+      start_period: 300s
+      interval: 10s
+      timeout: 15s
+      retries: 3
     depends_on:
       mlflow:
         condition: service_healthy  # start only once the registry answers
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  node-exporter:  # the machine's CPU, memory, disk and network, for the system dashboard
+    image: prom/node-exporter:v1.9.1
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  grafana:
+    image: grafana/grafana:11.6.0-ubuntu
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}  # set it in .env; never commit it
+      GF_AUTH_ANONYMOUS_ENABLED: "true"  # view the dashboards without logging in (bound to localhost only)
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      # Data source and dashboards come from these files at every start, so they are versioned with the code
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus

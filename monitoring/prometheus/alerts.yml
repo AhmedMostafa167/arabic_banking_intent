@@ -1,0 +1,42 @@
+# Alerts for the intent API. They show in Prometheus (localhost:9090/alerts) and in Grafana; sending
+# them anywhere (email, Slack) would need Alertmanager, which is not set up.
+groups:
+  - name: intent-api
+    rules:
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        # Longer than a cold start (60-105 s measured): the API answers nothing until the model is loaded,
+        # so a 1-minute window raised the alert on every restart
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: The intent API has not answered Prometheus for 3 minutes
+          description: The container stopped, or the model failed to load at startup (see `docker compose logs api`).
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(intent_api_requests_total{status="error"}[5m]))
+            / sum(rate(intent_api_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: More than 5% of prediction requests are failing
+
+      # The model is wrong quietly, so watch what it says. On the training dialects about 2% of answers
+      # have a top probability under 0.5; on Tunisian, a dialect it never saw, 23% (measured 2026-11-02).
+      # Needs at least 3 requests a minute, so a quiet period cannot trip it.
+      - alert: LowConfidenceShareHigh
+        expr: |
+          (
+            sum by (version) (rate(intent_api_top_confidence_bucket{le="0.5"}[5m]))
+              / sum by (version) (rate(intent_api_top_confidence_count[5m]))
+          ) > 0.10
+          and sum by (version) (rate(intent_api_top_confidence_count[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10% of answers from v{{ $labels.version }} have a top probability under 0.5"
+          description: Traffic may have shifted to wording or a dialect the model was not trained on. No labels are needed to see this; check a sample of the messages.

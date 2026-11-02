@@ -1,0 +1,10 @@
+# Loads every dashboard in monitoring/grafana/dashboards/ at startup; edit the JSON files, not the UI.
+apiVersion: 1
+
+providers:
+  - name: intent-api
+    folder: Intent API
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

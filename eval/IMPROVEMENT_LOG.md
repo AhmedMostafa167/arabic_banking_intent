@@ -11,6 +11,7 @@ Entries are in the order the work happened.
 | 1 | 2026-10-25 | Our validation split instead of the official one (TF-IDF baseline) | Validation macro-F1 | official 0.919 | ours 0.887 (−3.2 points, all leak) |
 | 2 | 2026-11-01 | Fine-tuned AraBERT instead of TF-IDF (champion v3 → v4) | Validation macro-F1 | 0.887 | 0.918, mean of 3 seeds (+3.2 points, above the noise for every seed) |
 | 5 | 2026-11-02 | The champion served as ONNX fp16 without torch (v5 → v7) | Image; idle memory; served p50 at 4 users | 2.26 GB; 1.23 GB; 670 ms | 0.95 GB; 0.86 GB; 530 ms, with the same answers |
+| 6 | 2026-11-02 | Monitoring: an alert on the share of low-confidence answers | Share of answers with top probability < 0.5 | MSA traffic: 1.5%, quiet | Tunisian traffic: 25.1%, alert fired |
 
 ## How the numbers are produced
 
@@ -307,3 +308,36 @@ one repeat; rung 0 is the median of three (entry 4). Each cell is p50 / p95, the
 int8 stays a lesson until there is a CPU with VNNI to measure it on; such CPUs are common in recent
 x86 servers, where int8 usually gives the big speed-up. Rolling back to PyTorch v5 needs the
 `arabic-banking-intents-api:pytorch` image, not only a move of the alias.
+
+## Entry 6 — Monitoring: do the alerts fire when they should? (2026-11-02)
+
+**Question.** The model fails quietly: a wrong answer still returns `200 OK` at normal speed. Can the
+monitoring see the model drift without labels, and see the service go down, without crying wolf?
+
+**Measure.** Prometheus scrapes the API's `/metrics` and node-exporter every 15 s. The rules are in
+`monitoring/prometheus/alerts.yml`, and Grafana shows a model dashboard and a system dashboard. The
+drift signal is the share of answers whose top probability is under 0.5. Offline, on the saved
+validation and test probabilities, it is:
+
+| Set | Validation | MSA | Palestinian | Saudi | Moroccan | Tunisian |
+|---|---|---|---|---|---|---|
+| Top probability < 0.5 | 1.5% | 1.7% | 2.0% | 4.4% | 7.8% | 23.4% |
+
+So the alert threshold is a share above 10% over 5 minutes, held for 2 minutes. Then, against the
+running stack (`benchmarks/locustfile.py`, 4 users, `TEST_SETS` choosing the dialect):
+
+| Phase | Low-confidence share (5 min) | Alerts |
+|---|---|---|
+| 6 min of MSA traffic, a training dialect | 1.5% | none |
+| 9 min of Tunisian traffic, never seen in training | 25.1% | `LowConfidenceShareHigh` **firing** |
+| API stopped for 90 s | | `ApiDown` pending |
+| restart, until the model was loaded again | | `ApiDown` **fired** (down for over 3 min in all), then cleared |
+
+- **Drift was visible without a single label:** familiar traffic stayed at the offline 1.5%, and
+  unfamiliar traffic rose to 25%, as the offline numbers predicted.
+- **The first version of `ApiDown` would have cried wolf.** It waited 1 minute, but the API
+  answers nothing until its model is loaded, and a cold start takes 60–105 s here (more when the
+  machine is overloaded). It now waits 3 minutes.
+
+**Decision.** The three alerts stay as they are. Sending them to someone (Alertmanager, with email or
+Slack) is parked: today they show in Prometheus and Grafana only.

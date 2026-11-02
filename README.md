@@ -4,10 +4,11 @@ Classifies Arabic banking customer messages into 77 intents (ArBanking77), with 
 system around the model: versioned data, tracked runs, a model registry with promotion gates, a served
 and load-tested API, and the measured trade-offs of every optimisation.
 
-**Status:** the model is fine-tuned AraBERT, served as ONNX fp16 by a FastAPI container without PyTorch.
-Next: monitoring (Prometheus and Grafana). The model card is [docs/MODEL_CARD.md](docs/MODEL_CARD.md),
-the data card [docs/DATA_CARD.md](docs/DATA_CARD.md), and every measured change, with the prediction
-written before it, is in [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md).
+**Status:** complete. The model is fine-tuned AraBERT, served as ONNX fp16 by a FastAPI container
+without PyTorch and monitored with Prometheus and Grafana. It is published on the Hugging Face Hub as
+[Ahmed167/arabert-arbanking77-intents](https://huggingface.co/Ahmed167/arabert-arbanking77-intents) (model card:
+[docs/MODEL_CARD.md](docs/MODEL_CARD.md)); the data card is [docs/DATA_CARD.md](docs/DATA_CARD.md); every
+measured change, with the prediction written before it, is in [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md).
 
 ## Results
 
@@ -33,6 +34,8 @@ What was learned along the way, briefly:
   largest gains on unseen dialects.
 - int8 quantisation did not pay off on a CPU without VNNI.
 - In a container, ONNX Runtime's default thread count made latency collapse.
+- The share of low-confidence answers flags unfamiliar traffic without labels: 1.5% on MSA, 25% on
+  Tunisian, which raised the drift alert.
 
 Details: [eval/IMPROVEMENT_LOG.md](eval/IMPROVEMENT_LOG.md); bugs and surprises:
 [docs/log.md](docs/log.md).
@@ -47,6 +50,9 @@ data/raw ──prepare_data.py──► data/processed (DVC) ──► training:
                                                               │ loaded at startup by alias
                                                               ▼
                        FastAPI container (/api/v1/predict, /metrics) ◄── Locust load tests
+                                                              │ scraped every 15 s
+                                                              ▼
+                       Prometheus (alert rules) ──► Grafana: model dashboard, system dashboard
 ```
 
 Data: [ArBanking77](https://github.com/SinaLab/ArBanking77) by SinaLab, Birzeit University (CC BY-SA 4.0).
@@ -99,6 +105,25 @@ uv run uvicorn arabic_banking_intents.serving.main:app
 Endpoints: `POST /api/v1/predict` (top 3 intents with probabilities), `GET /api/v1/health` (liveness),
 `/api/v1/ready` (readiness: model loaded), `/api/v1/info` (the version serving), `/metrics` (Prometheus).
 To serve another version, move the alias and restart the `api` container; nothing is rebuilt.
+
+## Monitoring
+
+`docker compose up` also starts Prometheus (localhost:9090; alerts at `/alerts`) and Grafana
+(localhost:3000, folder "Intent API"). Both dashboards are provisioned from `monitoring/` at every start.
+
+- **Model dashboard:** requests per second by version and status, inference p50/p95/p99, requests in
+  flight, the share of low-confidence answers, the most predicted intents, errors.
+- **System dashboard:** the machine's CPU, memory, swap, disk and network (node-exporter), and the
+  API process's CPU and memory.
+- **Alerts** (`monitoring/prometheus/alerts.yml`):
+  - `ApiDown`: no scrape for 3 minutes, longer than a cold start;
+  - `HighErrorRate`: over 5% of requests failing for 5 minutes;
+  - `LowConfidenceShareHigh`: over 10% of answers with a top probability under 0.5, for 2 minutes.
+
+```bash
+# See the drift alert fire: traffic in a dialect the model never saw (about 10 minutes)
+TEST_SETS=tunisian uv run locust -f benchmarks/locustfile.py --headless --host http://127.0.0.1:8000 -u 4 -r 4 -t 10m
+```
 
 Settings such as the tracking URI and data paths live in `src/arabic_banking_intents/helpers/config.py`;
 copy `.env.example` to `.env` to change them.

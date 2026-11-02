@@ -4,6 +4,7 @@ Started by benchmarks/run_benchmark.py; to watch it in the browser instead:
     uv run locust -f benchmarks/locustfile.py --host http://127.0.0.1:8000
 """
 
+import os
 import random
 
 import pandas as pd
@@ -11,9 +12,11 @@ from locust import HttpUser, between, task
 
 from arabic_banking_intents.helpers.config import get_settings
 
-# Real messages from all five dialects: one text sent over and over would measure a cache, not the model
+# Real messages: one text sent over and over would measure a cache, not the model. All five test sets by
+# default; TEST_SETS=tunisian sends only one dialect, to see how monitoring reacts to unfamiliar traffic
+TEST_SETS = os.environ.get("TEST_SETS", "msa,pal,saudi,moroccan,tunisian").split(",")
 TEXTS = pd.concat(
-    pd.read_parquet(path, columns=["text"]) for path in sorted(get_settings().DATA_PROCESSED_DIR.glob("test_*.parquet"))
+    pd.read_parquet(get_settings().DATA_PROCESSED_DIR / f"test_{name}.parquet", columns=["text"]) for name in TEST_SETS
 )["text"].tolist()
 
 
