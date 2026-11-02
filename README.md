@@ -1,3 +1,4 @@
+[![ci](https://github.com/AhmedMostafa167/arabic_banking_intent/actions/workflows/ci.yml/badge.svg)](https://github.com/AhmedMostafa167/arabic_banking_intent/actions/workflows/ci.yml)
 # Arabic banking intent classifier
 
 Classifies Arabic banking customer messages into 77 intents (ArBanking77), with a production-standard
