@@ -233,27 +233,49 @@ and `aa83007`, MLflow experiment `optimisation`. Quality is checked on all 2,397
 Latency is per message, over 200 validation texts one at a time, with all variants timed back to back
 in one run. The laptop was short of memory, so compare rows rather than absolute numbers.
 
-| Rung | Size | p50 / p95 | Validation macro-F1 | Same labels as v5 | Change, 95% interval (points) | Check |
-|---|---|---|---|---|---|---|
-| PyTorch fp32 (v5) | 272 MB (fp16 file) | 1,403 / 4,017 ms | 0.919 | | | reference |
-| ONNX fp32 | 543 MB | 460 / 823 ms | 0.919 | 100% | | same model |
-| + graph optimisation | 543 MB | 351 / 812 ms | 0.919 | 100% | | same model |
-| fp16 | 272 MB | 378 / 863 ms | 0.919 | 100% | 0.00 to 0.00 | **pass** |
-| int8 dynamic | 138 MB | 339 / 672 ms | 0.842 | 85% | −9.40 to −6.18 | fail |
-| int8 selective | 287 MB | 318 / 602 ms | 0.915 | 97% | −1.05 to +0.19 | fail |
-| int8 static | about 135 MB | 2,593 ms (10-message probe) | not checked | | | dropped |
+| Rung | Model size | p50 / p95 | Validation macro-F1 | Same labels as v5 | Check |
+|---|---|---|---|---|---|
+| PyTorch fp32 (v5) | 540 MB | 1,403 / 4,017 ms | 0.919 | | reference |
+| ONNX fp32 | 543 MB | 460 / 823 ms | 0.919 | 100% | same model |
+| + graph optimisation | 543 MB | 351 / 812 ms | 0.919 | 100% | same model |
+| fp16 | 272 MB | 378 / 863 ms | 0.919 | 100% | **pass** (change 0.00 to 0.00 points) |
 
-- **Graph optimisation fused every layer:** the 12 attention blocks, 12 GELUs, 24 residual-add +
-  LayerNorms and the embeddings each became one operation, for a p50 about 24% below plain ONNX.
+- **Size is the number of weights times the bytes per weight.** The model has about 135 million
+  weights: 49 million in the embedding table (64,000 words × 768) and 85 million in the encoder. In
+  fp32 (4 bytes each) that is 540 MB, the size the model has whenever it runs. (The PyTorch file
+  was stored in fp16, 272 MB, only to halve the download from Kaggle; it becomes fp32 again when
+  loaded.)
+- **ONNX does not change the size:** the same weights at the same precision, in another file format.
+- **Graph optimisation is a speed step, not a size step:** the 12 attention blocks, 12 GELUs, 24
+  residual-add + LayerNorms and the embeddings each became one operation, for a p50 about 24% below
+  plain ONNX. Every weight is still needed, so the size stays at 543 MB.
 - **fp16 halves the size with identical labels**, and is no faster: this CPU has no fp16 arithmetic.
-- **int8 dynamic is 4× smaller but loses 7.7 points.** On a CPU without VNNI, int8 products can
-  saturate. int8 selective (7-bit per-channel weights; embeddings, pooler and classifier kept in fp32)
-  recovers most of it, losing 0.4 points at best estimate. But its interval cannot rule out a loss of a
-  full point, so it fails the 0.5-point gate.
-- **int8 static took 2 hours to calibrate and ran 4.6× slower than fp32.** Without VNNI or AVX2,
-  ONNX Runtime has no fast kernels for its quantise-dequantise format.
 - Two thread sweeps outside the container contradicted each other (memory pressure), so no
   conclusion was drawn from them.
+
+**int8: a lesson, because this CPU cannot show it fairly.** At one byte per weight, int8 can shrink
+the model to a quarter of its fp32 size:
+
+| Weights stored as | Bytes per weight | Model size |
+|---|---|---|
+| fp32 everywhere | 4 | 540 MB |
+| fp16 everywhere | 2 | 270 MB |
+| int8 everywhere | 1 | 135 MB |
+| int8 encoder, fp32 embeddings (built here as "selective") | 1 + 4 | 287 MB |
+| int8 encoder, fp16 embeddings (not built) | 1 + 2 | about 185 MB |
+
+Its speed and accuracy depend on the hardware. ONNX Runtime runs int8 arithmetic fast and safely only
+on CPUs with VNNI (or at least AVX2) instructions. Without them, int8 products can saturate, which
+costs accuracy, and the runtime falls back to slow code paths, which costs speed. This 2014 CPU has
+neither, so the measurements describe the CPU rather than int8:
+
+- int8 for every weight lost 7.7 points of macro-F1 (85% same labels).
+- The selective version lost 0.4 points at best estimate, but its interval reached −1.05, so it fails
+  the 0.5-point gate.
+- Static int8 took 2 hours to calibrate and then ran 4.6× slower than fp32 (2,593 ms per message
+  against 563 ms in a 10-message probe). Since it could not win on speed, its accuracy was not checked.
+
+Testing int8 fairly needs a CPU with VNNI, so it is parked.
 
 **Served: v7 (fp16) from the image without torch.** `docker compose` with 3 CPUs, 60 s per level,
 one repeat; rung 0 is the median of three (entry 4). Each cell is p50 / p95, then requests per second.
@@ -281,7 +303,7 @@ one repeat; rung 0 is the median of three (entry 4). Each cell is p50 / p95, the
   better. The offline 3–4× came mostly from timing PyTorch while it was swapping.
 - **The clear wins are cost:** an image 58% smaller and about 30% less memory, with the same answers.
 
-**Decision.** v7 (ONNX fp16, 1 thread) is the champion. int8 is not worth it on this CPU. On a CPU
-with VNNI, such as most recent x86 servers, int8 is usually where the big speed-up is, so it is worth
-measuring again there. Rolling back to PyTorch v5 needs the `arabic-banking-intents-api:pytorch`
-image, not only a move of the alias.
+**Decision.** v7 (ONNX fp16, 1 thread) is the champion: 540 → 272 MB of model, identical answers.
+int8 stays a lesson until there is a CPU with VNNI to measure it on; such CPUs are common in recent
+x86 servers, where int8 usually gives the big speed-up. Rolling back to PyTorch v5 needs the
+`arabic-banking-intents-api:pytorch` image, not only a move of the alias.
