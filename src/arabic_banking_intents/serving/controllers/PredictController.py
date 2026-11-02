@@ -5,7 +5,7 @@ No FastAPI here: the routers handle HTTP, this class handles the model.
 
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import mlflow
 import numpy as np
@@ -65,7 +65,7 @@ class PredictController:
             model_family=version.tags.get(TagEnum.MODEL_FAMILY, ""),
             git_commit=version.tags.get(TagEnum.GIT_COMMIT, ""),
             intents=len(intent_names),
-            loaded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            loaded_at=datetime.now(UTC).isoformat(timespec="seconds"),
         )
         controller = cls(model, intent_names, info, settings.TOP_K)
         controller.check()

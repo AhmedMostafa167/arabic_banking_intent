@@ -14,10 +14,10 @@ import numpy as np
 from mlflow import MlflowClient
 
 from arabic_banking_intents.helpers.config import get_settings
+from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum
 from arabic_banking_intents.training.evaluate import interval, macro_f1, paired_bootstrap
 from arabic_banking_intents.training.registry import candidate_problems, register, val_predictions
 from arabic_banking_intents.training.tracking import connect
-from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum
 
 
 def main() -> None:

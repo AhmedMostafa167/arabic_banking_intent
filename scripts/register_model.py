@@ -11,9 +11,9 @@ import argparse
 from mlflow import MlflowClient
 
 from arabic_banking_intents.helpers.config import get_settings
+from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum
 from arabic_banking_intents.training.registry import candidate_problems, register
 from arabic_banking_intents.training.tracking import connect
-from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum
 
 
 def main() -> None:

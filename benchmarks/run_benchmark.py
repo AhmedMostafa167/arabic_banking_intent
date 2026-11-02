@@ -23,8 +23,8 @@ import mlflow
 import numpy as np
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
-from arabic_banking_intents.training.tracking import connect, lineage_tags
 from arabic_banking_intents.models.enums.TrackingEnum import ExperimentEnum, TagEnum
+from arabic_banking_intents.training.tracking import connect, lineage_tags
 
 LOCUSTFILE = Path(__file__).with_name("locustfile.py")
 READY_TIMEOUT_SECONDS = 600

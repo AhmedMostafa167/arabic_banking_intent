@@ -26,6 +26,14 @@ import numpy as np
 from mlflow import MlflowClient
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
+from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
+from arabic_banking_intents.models.enums.TrackingEnum import (
+    AliasEnum,
+    ExperimentEnum,
+    ModelFamilyEnum,
+    ModelMetadataEnum,
+    TagEnum,
+)
 from arabic_banking_intents.training import onnx_model, variants
 from arabic_banking_intents.training.arabert_model import AraBertClassifier
 from arabic_banking_intents.training.baseline import TEXT_COLUMN
@@ -34,9 +42,6 @@ from arabic_banking_intents.training.evaluate import interval, latency_ms, macro
 from arabic_banking_intents.training.onnx_model import OnnxClassifier
 from arabic_banking_intents.training.registry import download_model_folder, register, val_predictions
 from arabic_banking_intents.training.tracking import connect, lineage_tags, log_evaluation, log_val_predictions
-from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
-from arabic_banking_intents.models.enums.TrackingEnum import (AliasEnum, ExperimentEnum, ModelFamilyEnum,
-                                                              ModelMetadataEnum, TagEnum)
 
 GATE_MARGIN_POINTS = 0.5  # agreed 2026-11-01: an optimised copy may lose at most this much macro-F1
 SAME_MODEL_AGREEMENT = 0.999  # an fp32 conversion may flip a near-tie or two, not more
@@ -95,7 +100,7 @@ def thread_sweep(model_dir: Path, texts: list[str]) -> dict[str, float]:
     results = {}
     for threads in (1, 2, 3, 4):
         classifier = OnnxClassifier(model_dir, threads=threads)
-        one = lambda text: classifier.predict_proba([text])  # noqa: E731
+        one = lambda text, model=classifier: model.predict_proba([text])  # this loop's model, bound now
         results[f"threads_{threads}_alone_p50_ms"] = latency_ms(one, texts)[0]
         start = time.perf_counter()
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -187,7 +192,7 @@ def main() -> None:
             classifier = OnnxClassifier(root / rung)
             rows.append(measure(rung, classifier.predict_proba, folder_mb(root / rung), val, saved))
             del classifier  # one model in memory at a time: this laptop has little to spare
-        except Exception as error:  # a rung that cannot run on this CPU is a result too
+        except Exception as error:  # noqa: BLE001 - a rung that cannot run on this CPU is a result too
             rows.append({"rung": rung, "gate": f"could not run: {type(error).__name__}: {str(error)[:120]}"})
         log_rung(rows[-1], tags)  # at once, so a crash later loses only the rung in progress
         gc.collect()
@@ -200,7 +205,8 @@ def main() -> None:
             if rung != REFERENCE and not (folder / "model.onnx").exists():
                 continue
             classifier = AraBertClassifier(folder) if rung == REFERENCE else OnnxClassifier(folder)
-            p50, p95 = latency_ms(lambda text: classifier.predict_proba([text]), val[TEXT_COLUMN].tolist()[:LATENCY_SAMPLE])
+            p50, p95 = latency_ms(lambda text, model=classifier: model.predict_proba([text]),
+                                  val[TEXT_COLUMN].tolist()[:LATENCY_SAMPLE])
             speed |= {f"{rung}_p50_ms": p50, f"{rung}_p95_ms": p95}
             print(f"  {rung:20} p50 {p50:5.0f} ms, p95 {p95:5.0f} ms", flush=True)
             del classifier

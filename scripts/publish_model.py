@@ -17,9 +17,9 @@ from huggingface_hub import HfApi
 from mlflow import MlflowClient
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
+from arabic_banking_intents.models.enums.TrackingEnum import TagEnum
 from arabic_banking_intents.training.registry import download_model_folder
 from arabic_banking_intents.training.tracking import connect
-from arabic_banking_intents.models.enums.TrackingEnum import TagEnum
 
 PYTORCH_FILES = ["config.json", "model.safetensors", "tokenizer.json", "tokenizer_config.json"]
 ONNX_FILES = ["model.onnx", "tokenizer.json", "tokenizer_config.json", "intent_model.json"]

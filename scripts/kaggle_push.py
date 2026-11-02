@@ -18,9 +18,9 @@ import time
 from importlib.metadata import version
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
+from arabic_banking_intents.models.enums.TrackingEnum import TagEnum
 from arabic_banking_intents.training.data import load_labels, load_official
 from arabic_banking_intents.training.tracking import lineage_tags
-from arabic_banking_intents.models.enums.TrackingEnum import TagEnum
 
 TRAINING_SCRIPT = PROJECT_ROOT / "kaggle" / "train_arabert.py"
 PINNED_PACKAGES = ["transformers", "tokenizers", "safetensors", "accelerate"]  # Kaggle keeps its own CUDA torch
@@ -29,7 +29,7 @@ READY_TIMEOUT_SECONDS = 900
 
 
 def kaggle(*args: str, check: bool = True) -> subprocess.CompletedProcess:
-    result = subprocess.run(["kaggle", *args], capture_output=True, text=True)
+    result = subprocess.run(["kaggle", *args], check=False, capture_output=True, text=True)  # checked below
     if check and result.returncode != 0:
         raise SystemExit(f"kaggle {' '.join(args)} failed:\n{result.stdout}{result.stderr}")
     return result

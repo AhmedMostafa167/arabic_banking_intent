@@ -32,6 +32,9 @@ def test_predict_returns_the_intents_and_the_version():
     response = client_with(FakePredictor()).post("/api/v1/predict", json={"text": "وين بطاقتي"})
     assert response.status_code == 200
     body = response.json()
+    # The contract: an added or removed field breaks every client
+    assert set(body) == {"intents", "model_version"}
+    assert all(set(intent) == {"intent", "confidence"} for intent in body["intents"])
     assert [intent["intent"] for intent in body["intents"]] == ["card arrival", "card linking", "exchange rate"]
     assert body["model_version"] == "7"
 

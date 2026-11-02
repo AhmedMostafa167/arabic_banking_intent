@@ -2,7 +2,13 @@ name: ci
 
 on:
   push:
+    paths-ignore: ["**.md", "docs/**", "eval/**"]  # a README change does not need the pipeline
   pull_request:
+    paths-ignore: ["**.md", "docs/**", "eval/**"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true  # a newer push makes the older run pointless
 
 jobs:
   tests:
@@ -12,13 +18,25 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.13.5"
+          enable-cache: true  # keyed on uv.lock: downloads only when the dependencies change
       - run: uv sync --frozen
-      - run: uv run pytest -q
+      - name: Lint
+        run: uv run ruff check .
+      - name: Tests
+        run: uv run pytest -q
 
   image:
+    needs: tests  # a commit that fails the tests never gets an image
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - run: docker build -t arabic-banking-intents-api .
+      - name: Build
+        run: docker build -t arabic-banking-intents-api:${{ github.sha }} .
+      - name: Smoke test the image
+        # The image has no torch. If serving code, or the ONNX model's own code that runs at load time,
+        # imports something the image lacks, this fails here instead of at the next deploy
+        run: >
+          docker run --rm arabic-banking-intents-api:${{ github.sha }} python -c
+          "import arabic_banking_intents.serving.main, arabic_banking_intents.training.onnx_model, sklearn, skops"
       - name: Image size
-        run: docker image inspect arabic-banking-intents-api --format '{{.Size}}' | numfmt --to=si --suffix=B
+        run: docker image inspect arabic-banking-intents-api:${{ github.sha }} --format '{{.Size}}' | numfmt --to=si --suffix=B

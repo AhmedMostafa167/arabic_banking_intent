@@ -15,11 +15,11 @@ import httpx
 import numpy as np
 
 from arabic_banking_intents.helpers.config import get_settings
+from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
 from arabic_banking_intents.training.baseline import TEXT_COLUMN
 from arabic_banking_intents.training.data import load_label_names, load_train_val
 from arabic_banking_intents.training.registry import val_predictions
 from arabic_banking_intents.training.tracking import connect
-from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
 
 
 def main() -> None:

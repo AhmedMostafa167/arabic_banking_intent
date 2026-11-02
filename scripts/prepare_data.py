@@ -11,6 +11,7 @@ published. The logic is in arabic_banking_intents.training.data; the split setti
 import tomllib
 
 from arabic_banking_intents.helpers.config import get_settings
+from arabic_banking_intents.models.enums.DataEnum import TestSetEnum
 from arabic_banking_intents.training.data import (
     COLUMNS,
     build_pool,
@@ -20,7 +21,6 @@ from arabic_banking_intents.training.data import (
     split_by_question,
     to_versions,
 )
-from arabic_banking_intents.models.enums.DataEnum import TestSetEnum
 
 
 def main() -> None:

@@ -19,13 +19,13 @@ from mlflow import MlflowClient
 from mlflow.models import Model
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
+from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
+from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum, ModelFamilyEnum, ModelMetadataEnum, TagEnum
 from arabic_banking_intents.training import arabert_model
 from arabic_banking_intents.training.baseline import TEXT_COLUMN
 from arabic_banking_intents.training.data import load_label_names, load_train_val
 from arabic_banking_intents.training.registry import candidate_problems, register, val_predictions
 from arabic_banking_intents.training.tracking import connect, lineage_tags
-from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
-from arabic_banking_intents.models.enums.TrackingEnum import AliasEnum, ModelFamilyEnum, ModelMetadataEnum, TagEnum
 
 
 def log_copy(source_uri: str, family: str, example, intent_names: list[str], tmp: Path) -> str:

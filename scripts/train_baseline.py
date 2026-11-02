@@ -19,13 +19,18 @@ import mlflow
 import pandas as pd
 
 from arabic_banking_intents.helpers.config import PROJECT_ROOT, get_settings
+from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
+from arabic_banking_intents.models.enums.TrackingEnum import (
+    ComputeEnum,
+    ExperimentEnum,
+    ModelFamilyEnum,
+    ModelMetadataEnum,
+    TagEnum,
+)
 from arabic_banking_intents.training.baseline import TEXT_COLUMN, build_pipeline
 from arabic_banking_intents.training.data import load_label_names, load_test_sets, load_train_val
 from arabic_banking_intents.training.evaluate import latency_ms
 from arabic_banking_intents.training.tracking import connect, flatten, lineage_tags, log_evaluation, log_val_predictions
-from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
-from arabic_banking_intents.models.enums.TrackingEnum import (ComputeEnum, ExperimentEnum, ModelFamilyEnum,
-                                                              ModelMetadataEnum, TagEnum)
 
 LATENCY_SAMPLE = 200  # validation messages timed one at a time
 

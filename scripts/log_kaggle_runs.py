@@ -18,15 +18,20 @@ import mlflow
 import numpy as np
 
 from arabic_banking_intents.helpers.config import get_settings
+from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
+from arabic_banking_intents.models.enums.TrackingEnum import (
+    ComputeEnum,
+    ExperimentEnum,
+    ModelFamilyEnum,
+    ModelMetadataEnum,
+    TagEnum,
+)
 from arabic_banking_intents.training import arabert_model
 from arabic_banking_intents.training.arabert_model import AraBertClassifier
 from arabic_banking_intents.training.baseline import TEXT_COLUMN
 from arabic_banking_intents.training.data import load_label_names, load_test_sets, load_train_val
 from arabic_banking_intents.training.evaluate import latency_ms, macro_f1
 from arabic_banking_intents.training.tracking import connect, flatten, log_evaluation, log_val_predictions
-from arabic_banking_intents.models.enums.DataEnum import DataVariantEnum
-from arabic_banking_intents.models.enums.TrackingEnum import (ComputeEnum, ExperimentEnum, ModelFamilyEnum,
-                                                              ModelMetadataEnum, TagEnum)
 
 MIN_LABEL_AGREEMENT = 0.995  # fp16 weights and another GPU/CPU may flip a few near-ties, not more
 MAX_MACRO_F1_GAP = 0.002
@@ -36,7 +41,7 @@ POLL_SECONDS = 60
 
 
 def kaggle(*args: str) -> str:
-    result = subprocess.run(["kaggle", *args], capture_output=True, text=True)
+    result = subprocess.run(["kaggle", *args], check=False, capture_output=True, text=True)  # checked below
     if result.returncode != 0:
         raise SystemExit(f"kaggle {' '.join(args)} failed:\n{result.stdout}{result.stderr}")
     return result.stdout

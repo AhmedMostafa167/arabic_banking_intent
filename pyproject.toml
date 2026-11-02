@@ -45,10 +45,21 @@ dev = [
     "ipykernel>=6.29",
     "locust>=2.47.0",
     "pytest>=9.1.1",
+    "ruff>=0.17.3",
 ]
 
 [tool.uv]
 default-groups = ["pytorch", "serving", "training", "dev"]  # everything, for local work
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["notebooks"]  # the exploration record stays as it was written
+
+[tool.ruff.lint]
+# Module names such as controllers/PredictController.py and models/enums/DataEnum.py follow the
+# backend layout's convention on purpose
+ignore = ["N999"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
